@@ -3,12 +3,12 @@
  * Excel Export Logic
  */
 
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
-
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 add_action( 'admin_post_lol_export_excel', 'lol_handle_excel_export' );
 
