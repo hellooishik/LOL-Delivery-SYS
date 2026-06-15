@@ -35,7 +35,7 @@ function lol_handle_excel_export() {
     $sheet = $spreadsheet->getActiveSheet();
 
     // Set Header
-    $headers = ['Token ID', 'Customer Name', 'Phone', 'Pickup Date', 'Delivery Date', 'Payment Status', 'Amount', 'Status', 'Items Detail'];
+    $headers = ['Token ID', 'Customer Name', 'Phone', 'Pickup Date', 'Delivery Date', 'Delivery Boy', 'Payment Status', 'Amount', 'Status', 'Items Detail'];
     $col = 'A';
     foreach ($headers as $header) {
         $sheet->setCellValue($col . '1', $header);
@@ -61,10 +61,11 @@ function lol_handle_excel_export() {
         $sheet->setCellValue('C' . $row, $order->phone_number);
         $sheet->setCellValue('D' . $row, $order->pickup_date);
         $sheet->setCellValue('E' . $row, $order->delivery_date);
-        $sheet->setCellValue('F' . $row, $order->payment_status);
-        $sheet->setCellValue('G' . $row, $order->amount_received);
-        $sheet->setCellValue('H' . $row, $order->order_status);
-        $sheet->setCellValue('I' . $row, $items_str);
+        $sheet->setCellValue('F' . $row, $order->delivery_boy);
+        $sheet->setCellValue('G' . $row, $order->payment_status);
+        $sheet->setCellValue('H' . $row, $order->amount_received);
+        $sheet->setCellValue('I' . $row, $order->order_status);
+        $sheet->setCellValue('J' . $row, $items_str);
 
         $row++;
     }

@@ -29,17 +29,8 @@
         </div>
 
         <div class="lol-form-group">
-            <label for="delivery_boy">Delivery Boy *</label>
-            <select id="delivery_boy" name="delivery_boy" required>
-                <option value="">Select Delivery Boy</option>
-                <?php
-                // Populate delivery boys
-                $users = get_users(array('role' => 'delivery_partner'));
-                foreach ($users as $user) {
-                    echo '<option value="' . esc_attr($user->ID) . '">' . esc_html($user->display_name) . '</option>';
-                }
-                ?>
-            </select>
+            <label for="delivery_boy">Delivery Boy Name *</label>
+            <input type="text" id="delivery_boy" name="delivery_boy" required placeholder="Enter delivery boy name">
         </div>
 
         <div class="lol-form-group">

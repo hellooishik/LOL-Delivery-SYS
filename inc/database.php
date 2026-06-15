@@ -22,7 +22,7 @@ function lol_create_custom_tables() {
         phone_number varchar(20) NOT NULL,
         pickup_date date NOT NULL,
         delivery_date date NULL,
-        delivery_boy bigint(20) NULL,
+        delivery_boy varchar(255) NULL,
         payment_status varchar(20) DEFAULT 'Unpaid' NOT NULL,
         amount_received decimal(10,2) NULL,
         order_status varchar(50) DEFAULT 'Pickup Completed' NOT NULL,

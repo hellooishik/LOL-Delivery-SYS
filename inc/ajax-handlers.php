@@ -139,13 +139,13 @@ function lol_ajax_save_delivery() {
     $orders_table = $wpdb->prefix . 'laundry_orders';
 
     $token_id = sanitize_text_field( $_POST['token_id'] );
-    $delivery_boy_id = intval( $_POST['delivery_boy'] );
+    $delivery_boy_name = sanitize_text_field( $_POST['delivery_boy'] );
     $payment_status = sanitize_text_field( $_POST['payment_status'] );
     $amount_received = isset($_POST['amount_received']) ? floatval( $_POST['amount_received'] ) : 0;
     
     $delivery_date = current_time('Y-m-d');
 
-    if ( empty($token_id) || empty($delivery_boy_id) ) {
+    if ( empty($token_id) || empty($delivery_boy_name) ) {
         wp_send_json_error( array( 'message' => 'Missing required fields.' ) );
     }
 
@@ -153,13 +153,13 @@ function lol_ajax_save_delivery() {
         $orders_table,
         array(
             'delivery_date' => $delivery_date,
-            'delivery_boy' => $delivery_boy_id,
+            'delivery_boy' => $delivery_boy_name,
             'payment_status' => $payment_status,
             'amount_received' => $amount_received,
             'order_status' => 'Delivered'
         ),
         array( 'token_id' => $token_id ),
-        array('%s', '%d', '%s', '%f', '%s'),
+        array('%s', '%s', '%s', '%f', '%s'),
         array('%s')
     );
 

@@ -77,3 +77,16 @@ function lol_theme_activation() {
     lol_add_delivery_partner_role();
 }
 add_action('after_switch_theme', 'lol_theme_activation');
+
+/**
+ * Ensure delivery_boy column is updated to varchar
+ */
+function lol_update_delivery_boy_column() {
+    global $wpdb;
+    $table_orders = $wpdb->prefix . 'laundry_orders';
+    // Suppress errors if table doesn't exist yet
+    $wpdb->suppress_errors = true;
+    $wpdb->query("ALTER TABLE $table_orders MODIFY delivery_boy VARCHAR(255) NULL");
+    $wpdb->suppress_errors = false;
+}
+add_action('init', 'lol_update_delivery_boy_column');

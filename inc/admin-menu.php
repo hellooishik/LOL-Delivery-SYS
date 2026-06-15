@@ -108,6 +108,7 @@ function lol_admin_orders_page() {
                     <th>Pickup Date</th>
                     <th>Status</th>
                     <th>Payment</th>
+                    <th>Delivery Boy</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -120,6 +121,7 @@ function lol_admin_orders_page() {
                     <td><?php echo esc_html($order->pickup_date); ?></td>
                     <td><?php echo esc_html($order->order_status); ?></td>
                     <td><?php echo esc_html($order->payment_status); ?></td>
+                    <td><?php echo esc_html($order->delivery_boy ? $order->delivery_boy : '-'); ?></td>
                     <td>
                         <a href="?page=lol-orders&action=delete&id=<?php echo $order->id; ?>" onclick="return confirm('Are you sure?');" style="color:red;">Delete</a>
                     </td>
