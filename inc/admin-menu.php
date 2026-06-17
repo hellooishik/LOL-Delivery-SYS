@@ -92,15 +92,7 @@ function lol_admin_orders_page() {
     global $wpdb;
     $orders_table = $wpdb->prefix . 'laundry_orders';
 
-    // Handle delete
-    if ( isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']) ) {
-        $id = intval($_GET['id']);
-        if ( current_user_can('manage_options') ) {
-            $wpdb->delete($orders_table, array('id' => $id));
-            $wpdb->delete($wpdb->prefix . 'laundry_order_items', array('order_id' => $id));
-            echo '<div class="updated"><p>Order deleted.</p></div>';
-        }
-    }
+    // Delete functionality removed as requested
 
     $orders = $wpdb->get_results("SELECT * FROM $orders_table ORDER BY id DESC LIMIT 100");
 
@@ -117,7 +109,6 @@ function lol_admin_orders_page() {
                     <th>Status</th>
                     <th>Payment</th>
                     <th>Delivery Boy</th>
-                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -130,9 +121,6 @@ function lol_admin_orders_page() {
                     <td><?php echo esc_html($order->order_status); ?></td>
                     <td><?php echo esc_html($order->payment_status); ?></td>
                     <td><?php echo esc_html($order->delivery_boy ? $order->delivery_boy : '-'); ?></td>
-                    <td>
-                        <a href="?page=lol-orders&action=delete&id=<?php echo $order->id; ?>" onclick="return confirm('Are you sure?');" style="color:red;">Delete</a>
-                    </td>
                 </tr>
                 <?php endforeach; else : ?>
                 <tr><td colspan="7">No orders found.</td></tr>
