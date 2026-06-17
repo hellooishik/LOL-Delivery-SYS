@@ -28,8 +28,11 @@ require_once LOL_THEME_DIR . '/inc/export-excel.php';
  * Enqueue scripts and styles.
  */
 function lol_delivery_scripts() {
+    // Enqueue Google Fonts
+    wp_enqueue_style( 'lol-google-fonts', 'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap', false );
+
     // Enqueue frontend CSS
-    wp_enqueue_style( 'lol-delivery-style', LOL_THEME_URI . '/assets/css/app.css', array(), LOL_THEME_VERSION );
+    wp_enqueue_style( 'lol-delivery-style', LOL_THEME_URI . '/assets/css/app.css', array('lol-google-fonts'), LOL_THEME_VERSION );
 
     // Enqueue frontend JS
     wp_enqueue_script( 'lol-delivery-script', LOL_THEME_URI . '/assets/js/app.js', array('jquery'), LOL_THEME_VERSION, true );

@@ -194,8 +194,16 @@ function lol_admin_main_excel_page() {
             })
             .then(function(ab) {
                 var wb = XLSX.read(ab, {type: "array"});
-                var wsname = wb.SheetNames[0];
-                var ws = wb.Sheets[wsname];
+                var targetSheetName = wb.SheetNames.find(function(name) {
+                    return name.toLowerCase() === 'june 2026';
+                });
+                
+                if (!targetSheetName) {
+                    document.getElementById('lol-excel-container').innerHTML = "<p style='color:red;'>Error: 'June 2026' sheet not found in the Excel file.</p>";
+                    return;
+                }
+                
+                var ws = wb.Sheets[targetSheetName];
                 var html = XLSX.utils.sheet_to_html(ws, { id: "lol-excel-table" });
                 document.getElementById('lol-excel-container').innerHTML = html;
             })
