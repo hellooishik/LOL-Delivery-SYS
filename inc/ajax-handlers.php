@@ -178,3 +178,32 @@ function lol_ajax_save_delivery() {
         wp_send_json_error( array( 'message' => 'Failed to update order.' ) );
     }
 }
+
+// Save Excel File
+add_action( 'wp_ajax_lol_save_excel_file', 'lol_ajax_save_excel_file' );
+
+function lol_ajax_save_excel_file() {
+    if ( ! current_user_can('manage_options') ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized' ) );
+    }
+
+    $base64 = isset($_POST['excel_base64']) ? $_POST['excel_base64'] : '';
+    if ( empty($base64) ) {
+        wp_send_json_error( array( 'message' => 'No excel data provided.' ) );
+    }
+
+    $decoded = base64_decode($base64);
+    if ( $decoded === false ) {
+        wp_send_json_error( array( 'message' => 'Failed to decode excel data.' ) );
+    }
+
+    $file_path = LOL_THEME_DIR . '/Laugh-O-Laundry  Customer Sheet .xlsx';
+    
+    $saved = file_put_contents($file_path, $decoded);
+
+    if ( $saved !== false ) {
+        wp_send_json_success( array( 'message' => 'Excel file updated successfully.' ) );
+    } else {
+        wp_send_json_error( array( 'message' => 'Failed to write file to disk. Check permissions.' ) );
+    }
+}

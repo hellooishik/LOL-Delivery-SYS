@@ -161,8 +161,13 @@ function lol_admin_main_excel_page() {
     $excel_url = LOL_THEME_URI . '/Laugh-O-Laundry  Customer Sheet .xlsx';
     ?>
     <div class="wrap">
-        <h1>Main Excel Sheet</h1>
+        <h1>Main Excel Sheet (Editable)</h1>
         <p>Displaying contents of Laugh-O-Laundry Customer Sheet.</p>
+        <div style="margin-bottom: 15px;">
+            <button id="btn-add-row" class="button button-secondary">Add New Row</button>
+            <button id="btn-save-excel" class="button button-primary">Save Changes to Excel</button>
+            <span id="save-excel-msg" style="margin-left: 10px; font-weight: bold;"></span>
+        </div>
         <div id="lol-excel-container">
             <p>Loading Excel Data...</p>
         </div>
@@ -182,12 +187,22 @@ function lol_admin_main_excel_page() {
         #lol-excel-table th {
             background-color: #f2f2f2;
         }
+        #lol-excel-table td[contenteditable="true"]:hover {
+            background-color: #f9f9f9;
+            cursor: text;
+        }
+        #lol-excel-table td[contenteditable="true"]:focus {
+            outline: 2px solid #2271b1;
+            background-color: #fff;
+        }
     </style>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script>
     document.addEventListener("DOMContentLoaded", function() {
         var url = "<?php echo esc_url($excel_url); ?>";
-        fetch(url)
+        var currentSheetName = 'June 2026';
+        
+        fetch(url + '?t=' + new Date().getTime()) // prevent caching
             .then(function(res) { 
                 if (!res.ok) throw new Error("Fetch failed");
                 return res.arrayBuffer(); 
@@ -203,13 +218,89 @@ function lol_admin_main_excel_page() {
                     return;
                 }
                 
+                currentSheetName = targetSheetName;
                 var ws = wb.Sheets[targetSheetName];
                 var html = XLSX.utils.sheet_to_html(ws, { id: "lol-excel-table" });
                 document.getElementById('lol-excel-container').innerHTML = html;
+
+                // Make cells editable
+                makeTableEditable();
             })
             .catch(function(err) {
                 document.getElementById('lol-excel-container').innerHTML = "<p style='color:red;'>Error loading Excel file: " + err.message + "</p>";
             });
+
+        function makeTableEditable() {
+            var table = document.getElementById('lol-excel-table');
+            if (!table) return;
+            var tds = table.getElementsByTagName('td');
+            for (var i = 0; i < tds.length; i++) {
+                tds[i].setAttribute('contenteditable', 'true');
+            }
+        }
+
+        document.getElementById('btn-add-row').addEventListener('click', function() {
+            var table = document.getElementById('lol-excel-table');
+            if (!table) return;
+            
+            var tbody = table.querySelector('tbody') || table;
+            var rows = table.getElementsByTagName('tr');
+            if (rows.length === 0) return;
+            
+            var colCount = rows[0].children.length;
+            var newRow = document.createElement('tr');
+            for (var i = 0; i < colCount; i++) {
+                var newTd = document.createElement('td');
+                newTd.setAttribute('contenteditable', 'true');
+                newRow.appendChild(newTd);
+            }
+            tbody.appendChild(newRow);
+        });
+
+        document.getElementById('btn-save-excel').addEventListener('click', function() {
+            var table = document.getElementById('lol-excel-table');
+            if (!table) return;
+            
+            var msgEl = document.getElementById('save-excel-msg');
+            msgEl.textContent = "Saving...";
+            msgEl.style.color = "#2271b1";
+            
+            try {
+                var newWs = XLSX.utils.table_to_sheet(table);
+                var newWb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(newWb, newWs, currentSheetName);
+                
+                var b64 = XLSX.write(newWb, {bookType:'xlsx', type:'base64'});
+                
+                var formData = new FormData();
+                formData.append('action', 'lol_save_excel_file');
+                formData.append('excel_base64', b64);
+                
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        msgEl.textContent = "Saved successfully!";
+                        msgEl.style.color = "green";
+                        setTimeout(() => msgEl.textContent = "", 3000);
+                    } else {
+                        msgEl.textContent = "Error: " + (res.data ? res.data.message : 'Failed to save.');
+                        msgEl.style.color = "red";
+                    }
+                })
+                .catch(err => {
+                    msgEl.textContent = "Request failed.";
+                    msgEl.style.color = "red";
+                });
+            } catch (e) {
+                msgEl.textContent = "Error generating Excel.";
+                msgEl.style.color = "red";
+                console.error(e);
+            }
+        });
     });
     </script>
     <?php
