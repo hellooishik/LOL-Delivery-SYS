@@ -24,6 +24,8 @@ function lol_ajax_save_pickup() {
     
     $items = isset($_POST['items']) ? $_POST['items'] : array();
 
+    $pickup_agent_name = isset($_POST['pickup_agent_name']) ? sanitize_text_field( $_POST['pickup_agent_name'] ) : '';
+
     if ( empty($customer_name) || empty($phone_number) || empty($items) ) {
         wp_send_json_error( array( 'message' => 'Missing required fields.' ) );
     }
@@ -55,9 +57,10 @@ function lol_ajax_save_pickup() {
             'customer_name' => $customer_name,
             'phone_number' => $phone_number,
             'pickup_date' => $pickup_date,
+            'pickup_agent_name' => $pickup_agent_name,
             'order_status' => 'Processing'
         ),
-        array('%s', '%s', '%s', '%s', '%s')
+        array('%s', '%s', '%s', '%s', '%s', '%s')
     );
 
     if ( $inserted ) {
@@ -141,7 +144,10 @@ function lol_ajax_save_delivery() {
     $token_id = sanitize_text_field( $_POST['token_id'] );
     $delivery_boy_name = sanitize_text_field( $_POST['delivery_boy'] );
     $payment_status = sanitize_text_field( $_POST['payment_status'] );
+    $payment_mode = isset($_POST['payment_mode']) ? sanitize_text_field( $_POST['payment_mode'] ) : '';
+    $total_bill_amount = isset($_POST['total_bill_amount']) ? floatval( $_POST['total_bill_amount'] ) : 0;
     $amount_received = isset($_POST['amount_received']) ? floatval( $_POST['amount_received'] ) : 0;
+    $balance_due = isset($_POST['balance_due']) ? floatval( $_POST['balance_due'] ) : 0;
     
     $delivery_date = current_time('Y-m-d');
 
@@ -155,11 +161,14 @@ function lol_ajax_save_delivery() {
             'delivery_date' => $delivery_date,
             'delivery_boy' => $delivery_boy_name,
             'payment_status' => $payment_status,
+            'payment_mode' => $payment_mode,
+            'total_bill_amount' => $total_bill_amount,
             'amount_received' => $amount_received,
+            'balance_due' => $balance_due,
             'order_status' => 'Delivered'
         ),
         array( 'token_id' => $token_id ),
-        array('%s', '%s', '%s', '%f', '%s'),
+        array('%s', '%s', '%s', '%s', '%f', '%f', '%f', '%s'),
         array('%s')
     );
 

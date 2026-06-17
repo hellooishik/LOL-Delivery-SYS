@@ -157,11 +157,22 @@ jQuery(document).ready(function($) {
     $('input[name="payment_status"]').change(function() {
         if ($(this).val() === 'Paid') {
             $('#amount_group').show();
+            $('#total_bill_amount').prop('required', true);
             $('#amount_received').prop('required', true);
         } else {
             $('#amount_group').hide();
+            $('#total_bill_amount').prop('required', false).val('');
             $('#amount_received').prop('required', false).val('');
+            $('#balance_due').val('');
         }
+    });
+
+    // Balance due calculation
+    $('#total_bill_amount, #amount_received').on('input', function() {
+        let total = parseFloat($('#total_bill_amount').val()) || 0;
+        let received = parseFloat($('#amount_received').val()) || 0;
+        let balance = total - received;
+        $('#balance_due').val(balance.toFixed(2));
     });
 
     $('#lol-delivery-form').submit(function(e) {

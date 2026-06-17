@@ -80,13 +80,23 @@ add_action('after_switch_theme', 'lol_theme_activation');
 
 /**
  * Ensure delivery_boy column is updated to varchar
+ * Also add new columns for pickup_agent_name, payment_mode, total_bill_amount, balance_due
  */
-function lol_update_delivery_boy_column() {
+function lol_update_database_schema() {
     global $wpdb;
     $table_orders = $wpdb->prefix . 'laundry_orders';
     // Suppress errors if table doesn't exist yet
     $wpdb->suppress_errors = true;
+    
+    // Ensure delivery_boy is varchar
     $wpdb->query("ALTER TABLE $table_orders MODIFY delivery_boy VARCHAR(255) NULL");
+    
+    // Add new columns if they don't exist
+    $wpdb->query("ALTER TABLE $table_orders ADD COLUMN pickup_agent_name VARCHAR(255) NULL");
+    $wpdb->query("ALTER TABLE $table_orders ADD COLUMN payment_mode VARCHAR(50) NULL");
+    $wpdb->query("ALTER TABLE $table_orders ADD COLUMN total_bill_amount DECIMAL(10,2) NULL");
+    $wpdb->query("ALTER TABLE $table_orders ADD COLUMN balance_due DECIMAL(10,2) NULL");
+
     $wpdb->suppress_errors = false;
 }
-add_action('init', 'lol_update_delivery_boy_column');
+add_action('init', 'lol_update_database_schema');

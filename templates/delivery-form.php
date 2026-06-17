@@ -34,6 +34,20 @@
         </div>
 
         <div class="lol-form-group">
+            <label>Payment Mode</label>
+            <div class="lol-radio-group">
+                <label>
+                    <input type="radio" name="payment_mode" value="Cash" checked>
+                    Cash
+                </label>
+                <label>
+                    <input type="radio" name="payment_mode" value="Online">
+                    Online
+                </label>
+            </div>
+        </div>
+
+        <div class="lol-form-group">
             <label>Payment Status *</label>
             <div class="lol-radio-group">
                 <label>
@@ -48,8 +62,18 @@
         </div>
 
         <div class="lol-form-group" id="amount_group" style="display: none;">
-            <label for="amount_received">Amount Received (₹)</label>
-            <input type="number" id="amount_received" name="amount_received" min="0" step="0.01">
+            <div class="lol-form-group">
+                <label for="total_bill_amount">Total Bill Amount (₹)</label>
+                <input type="number" id="total_bill_amount" name="total_bill_amount" min="0" step="0.01">
+            </div>
+            <div class="lol-form-group">
+                <label for="amount_received">Amount Received (₹)</label>
+                <input type="number" id="amount_received" name="amount_received" min="0" step="0.01">
+            </div>
+            <div class="lol-form-group">
+                <label for="balance_due">Balance Due (₹)</label>
+                <input type="number" id="balance_due" name="balance_due" min="0" step="0.01" readonly style="background: #f0f0f0;">
+            </div>
         </div>
 
         <button type="submit" id="btn-submit-delivery" class="lol-btn-primary">MARK AS DELIVERED</button>

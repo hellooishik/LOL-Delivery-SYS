@@ -36,7 +36,6 @@ function lol_admin_menu() {
         'lol_admin_orders_page'
     );
 
-    // Note: Reports, Export Excel etc. would be added here similarly
     add_submenu_page(
         'lol-laundry-management',
         'Export Excel',
@@ -44,6 +43,15 @@ function lol_admin_menu() {
         'manage_options',
         'lol-export',
         'lol_admin_export_page'
+    );
+
+    add_submenu_page(
+        'lol-laundry-management',
+        'Main Excel Sheet',
+        'Main Excel Sheet',
+        'manage_options',
+        'lol-main-excel',
+        'lol_admin_main_excel_page'
     );
 }
 add_action( 'admin_menu', 'lol_admin_menu' );
@@ -146,5 +154,55 @@ function lol_admin_export_page() {
             <button type="submit" class="button button-primary button-hero">Export All Orders</button>
         </form>
     </div>
+    <?php
+}
+
+function lol_admin_main_excel_page() {
+    $excel_url = LOL_THEME_URI . '/Laugh-O-Laundry  Customer Sheet .xlsx';
+    ?>
+    <div class="wrap">
+        <h1>Main Excel Sheet</h1>
+        <p>Displaying contents of Laugh-O-Laundry Customer Sheet.</p>
+        <div id="lol-excel-container">
+            <p>Loading Excel Data...</p>
+        </div>
+    </div>
+    <style>
+        #lol-excel-table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+            background: #fff;
+        }
+        #lol-excel-table th, #lol-excel-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #lol-excel-table th {
+            background-color: #f2f2f2;
+        }
+    </style>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var url = "<?php echo esc_url($excel_url); ?>";
+        fetch(url)
+            .then(function(res) { 
+                if (!res.ok) throw new Error("Fetch failed");
+                return res.arrayBuffer(); 
+            })
+            .then(function(ab) {
+                var wb = XLSX.read(ab, {type: "array"});
+                var wsname = wb.SheetNames[0];
+                var ws = wb.Sheets[wsname];
+                var html = XLSX.utils.sheet_to_html(ws, { id: "lol-excel-table" });
+                document.getElementById('lol-excel-container').innerHTML = html;
+            })
+            .catch(function(err) {
+                document.getElementById('lol-excel-container').innerHTML = "<p style='color:red;'>Error loading Excel file: " + err.message + "</p>";
+            });
+    });
+    </script>
     <?php
 }

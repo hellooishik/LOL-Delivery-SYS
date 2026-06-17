@@ -7,6 +7,11 @@
         </div>
 
         <div class="lol-form-group">
+            <label for="pickup_agent_name">Pickup Agent Name</label>
+            <input type="text" id="pickup_agent_name" name="pickup_agent_name" placeholder="Enter agent name">
+        </div>
+
+        <div class="lol-form-group">
             <label for="customer_name">Customer Name *</label>
             <input type="text" id="customer_name" name="customer_name" required placeholder="Enter customer name">
         </div>
