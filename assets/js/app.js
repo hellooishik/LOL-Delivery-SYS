@@ -77,6 +77,9 @@ jQuery(document).ready(function($) {
                 $('#success-name').text(data.customer_name);
                 $('#success-phone').text(data.phone_number);
                 $('#success-date').text(data.pickup_date);
+                
+                // Update Excel in background
+                updateExcelWithOrder('pickup', data);
             } else {
                 $msg.addClass('error').text(response.data.message).show();
                 $btn.prop('disabled', false).text('SAVE PICKUP');
@@ -187,6 +190,12 @@ jQuery(document).ready(function($) {
 
         $.post(lol_ajax_obj.ajax_url, formData, function(response) {
             if (response.success) {
+                // Parse form data for background excel sync
+                let formDataArr = $('#lol-delivery-form').serializeArray();
+                let orderData = {};
+                formDataArr.forEach(item => orderData[item.name] = item.value);
+                updateExcelWithOrder('delivery', orderData);
+
                 $msg.addClass('success').text(response.data.message).show();
                 setTimeout(function() {
                     $('.lol-back-btn').click(); // Go back to main menu
@@ -200,5 +209,92 @@ jQuery(document).ready(function($) {
             $btn.prop('disabled', false).text('MARK AS DELIVERED');
         });
     });
+
+    // --- Background Excel Updater --- //
+    function updateExcelWithOrder(actionType, orderData) {
+        if (typeof XLSX === 'undefined') {
+            console.error("SheetJS not loaded.");
+            return;
+        }
+        
+        fetch(lol_ajax_obj.excel_url + '?t=' + new Date().getTime())
+            .then(res => res.arrayBuffer())
+            .then(ab => {
+                var wb = XLSX.read(ab, {type: "array"});
+                var targetSheetName = wb.SheetNames.find(name => name.toLowerCase() === 'june 2026');
+                if (!targetSheetName) return;
+                
+                var ws = wb.Sheets[targetSheetName];
+                var data = XLSX.utils.sheet_to_json(ws, {header: 1}); 
+                
+                var headers = data[0] || [];
+                var getColIdx = (name) => headers.findIndex(h => h && h.toString().trim().toLowerCase() === name.toLowerCase());
+                
+                var idxSl = getColIdx('SL.');
+                var idxDate = getColIdx('Date');
+                var idxName = getColIdx('Name');
+                var idxClothes = getColIdx('No. of clothes');
+                var idxAmount = getColIdx('Amount');
+                var idxDelDate = getColIdx('Delivery Date');
+                var idxDelStatus = getColIdx('Delivery Status');
+                var idxToken = getColIdx('Token ID');
+                var idxDelPartner = getColIdx('Delivery Partner Name');
+                var idxItems = getColIdx('Items Details');
+                
+                if (actionType === 'pickup') {
+                    var maxSl = 0;
+                    for (var i=1; i<data.length; i++) {
+                        var slVal = parseInt(data[i][idxSl]);
+                        if (!isNaN(slVal) && slVal > maxSl) maxSl = slVal;
+                    }
+                    
+                    var newRow = new Array(headers.length).fill('');
+                    if (idxSl !== -1) newRow[idxSl] = maxSl + 1;
+                    if (idxDate !== -1) newRow[idxDate] = orderData.pickup_date;
+                    if (idxName !== -1) newRow[idxName] = orderData.customer_name;
+                    
+                    var totalClothes = 0;
+                    var itemsArr = [];
+                    if (orderData.items) {
+                        var itemsList = Array.isArray(orderData.items) ? orderData.items : Object.values(orderData.items);
+                        itemsList.forEach(item => {
+                            totalClothes += parseInt(item.quantity) || 0;
+                            itemsArr.push(item.quantity + 'x ' + item.service_type);
+                        });
+                    }
+                    
+                    if (idxClothes !== -1) newRow[idxClothes] = totalClothes;
+                    if (idxItems !== -1) newRow[idxItems] = itemsArr.join(', ');
+                    if (idxToken !== -1) newRow[idxToken] = orderData.token_id;
+                    
+                    data.push(newRow);
+                    
+                } else if (actionType === 'delivery') {
+                    if (idxToken !== -1) {
+                        var rowIndex = data.findIndex(row => row[idxToken] === orderData.token_id);
+                        if (rowIndex !== -1) {
+                            if (idxDelPartner !== -1) data[rowIndex][idxDelPartner] = orderData.delivery_boy;
+                            if (idxDelDate !== -1) data[rowIndex][idxDelDate] = new Date().toISOString().split('T')[0];
+                            if (idxDelStatus !== -1) data[rowIndex][idxDelStatus] = 'Delivered';
+                            if (idxAmount !== -1 && orderData.amount_received) data[rowIndex][idxAmount] = orderData.amount_received;
+                        }
+                    }
+                }
+                
+                var newWs = XLSX.utils.aoa_to_sheet(data);
+                wb.Sheets[targetSheetName] = newWs;
+                
+                var b64 = XLSX.write(wb, {bookType:'xlsx', type:'base64'});
+                var formData = new FormData();
+                formData.append('action', 'lol_save_excel_file');
+                formData.append('excel_base64', b64);
+                
+                fetch(lol_ajax_obj.ajax_url, { method: 'POST', body: formData })
+                    .then(r => r.json())
+                    .then(res => { if (!res.success) console.error('Failed to sync excel:', res); })
+                    .catch(e => console.error(e));
+            })
+            .catch(err => console.error(err));
+    }
 
 });

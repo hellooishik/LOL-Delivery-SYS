@@ -34,13 +34,17 @@ function lol_delivery_scripts() {
     // Enqueue frontend CSS
     wp_enqueue_style( 'lol-delivery-style', LOL_THEME_URI . '/assets/css/app.css', array('lol-google-fonts'), LOL_THEME_VERSION );
 
+    // Enqueue SheetJS
+    wp_enqueue_script( 'sheetjs', 'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js', array(), null, true );
+
     // Enqueue frontend JS
-    wp_enqueue_script( 'lol-delivery-script', LOL_THEME_URI . '/assets/js/app.js', array('jquery'), LOL_THEME_VERSION, true );
+    wp_enqueue_script( 'lol-delivery-script', LOL_THEME_URI . '/assets/js/app.js', array('jquery', 'sheetjs'), LOL_THEME_VERSION, true );
 
     // Localize script for AJAX
     wp_localize_script( 'lol-delivery-script', 'lol_ajax_obj', array(
         'ajax_url' => admin_url( 'admin-ajax.php' ),
-        'nonce'    => wp_create_nonce( 'lol_delivery_nonce' )
+        'nonce'    => wp_create_nonce( 'lol_delivery_nonce' ),
+        'excel_url' => LOL_THEME_URI . '/Laugh-O-Laundry  Customer Sheet .xlsx'
     ) );
 }
 add_action( 'wp_enqueue_scripts', 'lol_delivery_scripts' );
