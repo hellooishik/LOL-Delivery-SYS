@@ -227,25 +227,49 @@ jQuery(document).ready(function($) {
                 var ws = wb.Sheets[targetSheetName];
                 var data = XLSX.utils.sheet_to_json(ws, {header: 1}); 
                 
-                var headers = data[0] || [];
-                var getColIdx = (name) => headers.findIndex(h => h && h.toString().trim().toLowerCase() === name.toLowerCase());
+                // Strip trailing empty rows to prevent appending at row 900+
+                while (data.length > 1) {
+                    var lastRow = data[data.length - 1];
+                    var isEmpty = true;
+                    if (lastRow && lastRow.length > 0) {
+                        for (var j = 0; j < lastRow.length; j++) {
+                            if (lastRow[j] !== undefined && lastRow[j] !== null && lastRow[j].toString().trim() !== '') {
+                                isEmpty = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (isEmpty) {
+                        data.pop();
+                    } else {
+                        break;
+                    }
+                }
                 
-                var idxSl = getColIdx('SL.');
-                var idxDate = getColIdx('Date');
-                var idxName = getColIdx('Name');
-                var idxClothes = getColIdx('No. of clothes');
-                var idxAmount = getColIdx('Amount');
-                var idxDelDate = getColIdx('Delivery Date');
-                var idxDelStatus = getColIdx('Delivery Status');
-                var idxToken = getColIdx('Token ID');
-                var idxDelPartner = getColIdx('Delivery Partner Name');
-                var idxItems = getColIdx('Items Details');
+                var headers = data[0] || [];
+                var getColIdx = (name) => {
+                    var normName = name.replace(/[^a-z0-9]/gi, '').toLowerCase();
+                    return headers.findIndex(h => h && h.toString().replace(/[^a-z0-9]/gi, '').toLowerCase() === normName);
+                };
+                
+                var idxSl = getColIdx('sl');
+                var idxDate = getColIdx('date');
+                var idxName = getColIdx('name');
+                var idxClothes = getColIdx('noofclothes');
+                var idxAmount = getColIdx('amount');
+                var idxDelDate = getColIdx('deliverydate');
+                var idxDelStatus = getColIdx('deliverystatus');
+                var idxToken = getColIdx('tokenid');
+                var idxDelPartner = getColIdx('deliverypartnername');
+                var idxItems = getColIdx('itemsdetails');
                 
                 if (actionType === 'pickup') {
                     var maxSl = 0;
                     for (var i=1; i<data.length; i++) {
-                        var slVal = parseInt(data[i][idxSl]);
-                        if (!isNaN(slVal) && slVal > maxSl) maxSl = slVal;
+                        if (idxSl !== -1 && data[i][idxSl]) {
+                            var slVal = parseInt(data[i][idxSl]);
+                            if (!isNaN(slVal) && slVal > maxSl) maxSl = slVal;
+                        }
                     }
                     
                     var newRow = new Array(headers.length).fill('');
@@ -291,10 +315,16 @@ jQuery(document).ready(function($) {
                 
                 fetch(lol_ajax_obj.ajax_url, { method: 'POST', body: formData })
                     .then(r => r.json())
-                    .then(res => { if (!res.success) console.error('Failed to sync excel:', res); })
-                    .catch(e => console.error(e));
+                    .then(res => { 
+                        if (!res.success) {
+                            console.error('Failed to sync excel:', res); 
+                        } else {
+                            console.log('Successfully background synced excel!');
+                        }
+                    })
+                    .catch(e => console.error('Fetch error:', e));
             })
-            .catch(err => console.error(err));
+            .catch(err => console.error('Excel fetch error:', err));
     }
 
 });
