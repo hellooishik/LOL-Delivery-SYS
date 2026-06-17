@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Define theme constants
 define( 'LOL_THEME_DIR', get_template_directory() );
 define( 'LOL_THEME_URI', get_template_directory_uri() );
-define( 'LOL_THEME_VERSION', '1.0.0' );
+define( 'LOL_THEME_VERSION', time() );
 
 // Include Composer autoloader if it exists (for PhpSpreadsheet)
 if ( file_exists( LOL_THEME_DIR . '/vendor/autoload.php' ) ) {
