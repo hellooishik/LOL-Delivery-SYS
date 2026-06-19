@@ -40,6 +40,7 @@ function lol_create_custom_tables() {
         id bigint(20) NOT NULL AUTO_INCREMENT,
         order_id bigint(20) NOT NULL,
         quantity int(11) NOT NULL,
+        delivered_quantity int(11) DEFAULT 0 NOT NULL,
         service_type varchar(100) NOT NULL,
         created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
         PRIMARY KEY  (id),

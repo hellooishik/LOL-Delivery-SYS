@@ -95,6 +95,8 @@ function lol_update_database_schema() {
     // Suppress errors if table doesn't exist yet
     $wpdb->suppress_errors = true;
     
+    $table_items = $wpdb->prefix . 'laundry_order_items';
+    
     // Ensure delivery_boy is varchar
     $wpdb->query("ALTER TABLE $table_orders MODIFY delivery_boy VARCHAR(255) NULL");
     
@@ -103,6 +105,8 @@ function lol_update_database_schema() {
     $wpdb->query("ALTER TABLE $table_orders ADD COLUMN payment_mode VARCHAR(50) NULL");
     $wpdb->query("ALTER TABLE $table_orders ADD COLUMN total_bill_amount DECIMAL(10,2) NULL");
     $wpdb->query("ALTER TABLE $table_orders ADD COLUMN balance_due DECIMAL(10,2) NULL");
+    
+    $wpdb->query("ALTER TABLE $table_items ADD COLUMN delivered_quantity INT(11) DEFAULT 0 NOT NULL");
 
     $wpdb->suppress_errors = false;
 }

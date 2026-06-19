@@ -35,12 +35,11 @@
                         <label>Service Type</label>
                         <select name="items[0][service_type]" required class="lol-service-select">
                             <option value="">Select Service</option>
-                            <option value="Basic Wash">Basic Wash</option>
-                            <option value="Dry Cleaning">Dry Cleaning</option>
-                            <option value="Ironing">Ironing</option>
-                            <option value="Premium Wash">Premium Wash</option>
-                            <option value="Steam Press">Steam Press</option>
-                            <option value="Other">Other</option>
+                            <option value="Wash and fold">Wash and fold</option>
+                            <option value="Wash and iron">Wash and iron</option>
+                            <option value="Dry clean">Dry clean</option>
+                            <option value="Stain removal">Stain removal</option>
+                            <option value="Iron and pressing">Iron and pressing</option>
                         </select>
                     </div>
                     <div class="lol-item-col lol-remove-col">

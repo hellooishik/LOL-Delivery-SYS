@@ -173,6 +173,19 @@ function lol_ajax_save_delivery() {
     );
 
     if ( $updated !== false ) {
+        // Update delivered quantities
+        $items_table = $wpdb->prefix . 'laundry_order_items';
+        $delivered_items = isset($_POST['delivered_items']) ? $_POST['delivered_items'] : array();
+        foreach ( $delivered_items as $item_id => $qty ) {
+            $wpdb->update(
+                $items_table,
+                array( 'delivered_quantity' => intval($qty) ),
+                array( 'id' => intval($item_id) ),
+                array( '%d' ),
+                array( '%d' )
+            );
+        }
+
         wp_send_json_success( array( 'message' => 'Delivery saved successfully.' ) );
     } else {
         wp_send_json_error( array( 'message' => 'Failed to update order.' ) );
@@ -205,5 +218,98 @@ function lol_ajax_save_excel_file() {
         wp_send_json_success( array( 'message' => 'Excel file updated successfully.' ) );
     } else {
         wp_send_json_error( array( 'message' => 'Failed to write file to disk. Check permissions.' ) );
+    }
+}
+
+// Get Order for Edit
+add_action( 'wp_ajax_lol_get_order_for_edit', 'lol_ajax_get_order_for_edit' );
+add_action( 'wp_ajax_nopriv_lol_get_order_for_edit', 'lol_ajax_get_order_for_edit' );
+
+function lol_ajax_get_order_for_edit() {
+    check_ajax_referer( 'lol_delivery_nonce', 'nonce' );
+
+    $password = sanitize_text_field( $_POST['password'] );
+    if ( $password !== 'admin123' ) {
+        wp_send_json_error( array( 'message' => 'Incorrect password.' ) );
+    }
+
+    global $wpdb;
+    $orders_table = $wpdb->prefix . 'laundry_orders';
+    $items_table = $wpdb->prefix . 'laundry_order_items';
+
+    $token_id = sanitize_text_field( $_POST['token_id'] );
+
+    if ( empty($token_id) ) {
+        wp_send_json_error( array( 'message' => 'Token ID is required.' ) );
+    }
+
+    $order = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $orders_table WHERE token_id = %s",
+        $token_id
+    ));
+
+    if ( $order ) {
+        $items = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $items_table WHERE order_id = %d",
+            $order->id
+        ));
+
+        wp_send_json_success( array(
+            'order' => $order,
+            'items' => $items
+        ) );
+    } else {
+        wp_send_json_error( array( 'message' => 'Token ID not found.' ) );
+    }
+}
+
+// Save Edited Order
+add_action( 'wp_ajax_lol_save_edited_order', 'lol_ajax_save_edited_order' );
+add_action( 'wp_ajax_nopriv_lol_save_edited_order', 'lol_ajax_save_edited_order' );
+
+function lol_ajax_save_edited_order() {
+    check_ajax_referer( 'lol_delivery_nonce', 'nonce' );
+
+    $password = sanitize_text_field( $_POST['password'] );
+    if ( $password !== 'admin123' ) {
+        wp_send_json_error( array( 'message' => 'Incorrect password.' ) );
+    }
+
+    global $wpdb;
+    $orders_table = $wpdb->prefix . 'laundry_orders';
+    $items_table = $wpdb->prefix . 'laundry_order_items';
+
+    $token_id = sanitize_text_field( $_POST['token_id'] );
+    $items = isset($_POST['items']) ? $_POST['items'] : array();
+
+    if ( empty($token_id) || empty($items) ) {
+        wp_send_json_error( array( 'message' => 'Missing required fields or items.' ) );
+    }
+
+    $order = $wpdb->get_row($wpdb->prepare(
+        "SELECT id FROM $orders_table WHERE token_id = %s",
+        $token_id
+    ));
+
+    if ( $order ) {
+        // Delete existing items
+        $wpdb->delete( $items_table, array( 'order_id' => $order->id ), array( '%d' ) );
+
+        // Insert new items
+        foreach ( $items as $item ) {
+            $wpdb->insert(
+                $items_table,
+                array(
+                    'order_id' => $order->id,
+                    'quantity' => intval( $item['quantity'] ),
+                    'service_type' => sanitize_text_field( $item['service_type'] )
+                ),
+                array('%d', '%d', '%s')
+            );
+        }
+
+        wp_send_json_success( array( 'message' => 'Order updated successfully.' ) );
+    } else {
+        wp_send_json_error( array( 'message' => 'Order not found.' ) );
     }
 }

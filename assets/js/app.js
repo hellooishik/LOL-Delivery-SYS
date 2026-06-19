@@ -11,6 +11,11 @@ jQuery(document).ready(function($) {
         $('#lol-delivery-view').addClass('active-view');
     });
 
+    $('#btn-show-edit').click(function() {
+        $('.lol-view').removeClass('active-view');
+        $('#lol-edit-view').addClass('active-view');
+    });
+
     $('.lol-back-btn').click(function() {
         $('.lol-view').removeClass('active-view');
         $('#lol-main-menu').addClass('active-view');
@@ -18,6 +23,10 @@ jQuery(document).ready(function($) {
         $('#lol-pickup-form')[0].reset();
         $('#lol-delivery-form').hide();
         $('#lol-delivery-search').show();
+        $('#lol-edit-form').hide();
+        $('#lol-edit-auth').show();
+        $('#edit_search_token').val('');
+        $('#edit_password').val('');
         $('.lol-message').removeClass('error success').text('').hide();
     });
 
@@ -35,12 +44,11 @@ jQuery(document).ready(function($) {
                     <label>Service Type</label>
                     <select name="items[${itemIndex}][service_type]" required class="lol-service-select">
                         <option value="">Select Service</option>
-                        <option value="Basic Wash">Basic Wash</option>
-                        <option value="Dry Cleaning">Dry Cleaning</option>
-                        <option value="Ironing">Ironing</option>
-                        <option value="Premium Wash">Premium Wash</option>
-                        <option value="Steam Press">Steam Press</option>
-                        <option value="Other">Other</option>
+                        <option value="Wash and fold">Wash and fold</option>
+                        <option value="Wash and iron">Wash and iron</option>
+                        <option value="Dry clean">Dry clean</option>
+                        <option value="Stain removal">Stain removal</option>
+                        <option value="Iron and pressing">Iron and pressing</option>
                     </select>
                 </div>
                 <div class="lol-item-col lol-remove-col">
@@ -140,7 +148,16 @@ jQuery(document).ready(function($) {
 
                 let itemsHtml = '';
                 items.forEach(function(item) {
-                    itemsHtml += `<li>${item.quantity} x ${item.service_type}</li>`;
+                    let deliveredValue = item.delivered_quantity ? item.delivered_quantity : item.quantity;
+                    itemsHtml += `
+                        <div class="lol-delivery-item-row" style="display: flex; align-items: center; margin-bottom: 10px; gap: 10px;">
+                            <div style="flex: 1;">Picked up: ${item.quantity} x ${item.service_type}</div>
+                            <div style="flex: 1;">
+                                <label style="margin-right: 5px;">Delivered Qty:</label>
+                                <input type="number" name="delivered_items[${item.id}]" value="${deliveredValue}" min="0" max="${item.quantity}" style="width: 80px;" class="lol-qty-input">
+                            </div>
+                        </div>
+                    `;
                 });
                 $('#detail_items_list').html(itemsHtml);
 
@@ -207,6 +224,131 @@ jQuery(document).ready(function($) {
         }).fail(function() {
             $msg.addClass('error').text('An error occurred.').show();
             $btn.prop('disabled', false).text('MARK AS DELIVERED');
+        });
+    });
+
+    // --- Edit Form Logic --- //
+    let editItemIndex = 0;
+
+    $('#btn-search-edit').click(function() {
+        let token = $('#edit_search_token').val().trim();
+        let password = $('#edit_password').val().trim();
+        let $msg = $('#edit-auth-message');
+        let $btn = $(this);
+
+        if (!token || !password) {
+            $msg.addClass('error').text('Please enter Token ID and Password.').show();
+            return;
+        }
+
+        $btn.prop('disabled', true).text('Verifying...');
+        $msg.removeClass('error success').text('').hide();
+
+        $.post(lol_ajax_obj.ajax_url, {
+            action: 'lol_get_order_for_edit',
+            token_id: token,
+            password: password,
+            nonce: lol_ajax_obj.nonce
+        }, function(response) {
+            if (response.success) {
+                let order = response.data.order;
+                let items = response.data.items;
+
+                $('#edit_token_id').val(order.token_id);
+                $('#edit_verified_password').val(password); // store to resend on save
+                $('#edit_detail_name').text(order.customer_name);
+
+                let itemsHtml = '';
+                editItemIndex = 0;
+                items.forEach(function(item) {
+                    itemsHtml += `
+                        <div class="lol-item-row">
+                            <div class="lol-item-col">
+                                <label>Qty</label>
+                                <input type="number" name="items[${editItemIndex}][quantity]" min="1" required class="lol-qty-input" value="${item.quantity}">
+                            </div>
+                            <div class="lol-item-col lol-flex-grow">
+                                <label>Service Type</label>
+                                <select name="items[${editItemIndex}][service_type]" required class="lol-service-select">
+                                    <option value="">Select Service</option>
+                                    <option value="Wash and fold" ${item.service_type === 'Wash and fold' ? 'selected' : ''}>Wash and fold</option>
+                                    <option value="Wash and iron" ${item.service_type === 'Wash and iron' ? 'selected' : ''}>Wash and iron</option>
+                                    <option value="Dry clean" ${item.service_type === 'Dry clean' ? 'selected' : ''}>Dry clean</option>
+                                    <option value="Stain removal" ${item.service_type === 'Stain removal' ? 'selected' : ''}>Stain removal</option>
+                                    <option value="Iron and pressing" ${item.service_type === 'Iron and pressing' ? 'selected' : ''}>Iron and pressing</option>
+                                </select>
+                            </div>
+                            <div class="lol-item-col lol-remove-col">
+                                <button type="button" class="lol-remove-item">&times;</button>
+                            </div>
+                        </div>
+                    `;
+                    editItemIndex++;
+                });
+                $('#lol-edit-items-container').html(itemsHtml);
+
+                $('#lol-edit-auth').hide();
+                $('#lol-edit-form').show();
+            } else {
+                $msg.addClass('error').text(response.data.message).show();
+            }
+        }).fail(function() {
+            $msg.addClass('error').text('An error occurred.').show();
+        }).always(function() {
+            $btn.prop('disabled', false).text('Verify & Search');
+        });
+    });
+
+    $('#btn-edit-add-item').click(function() {
+        let newRow = `
+            <div class="lol-item-row">
+                <div class="lol-item-col">
+                    <label>Qty</label>
+                    <input type="number" name="items[${editItemIndex}][quantity]" min="1" required class="lol-qty-input">
+                </div>
+                <div class="lol-item-col lol-flex-grow">
+                    <label>Service Type</label>
+                    <select name="items[${editItemIndex}][service_type]" required class="lol-service-select">
+                        <option value="">Select Service</option>
+                        <option value="Wash and fold">Wash and fold</option>
+                        <option value="Wash and iron">Wash and iron</option>
+                        <option value="Dry clean">Dry clean</option>
+                        <option value="Stain removal">Stain removal</option>
+                        <option value="Iron and pressing">Iron and pressing</option>
+                    </select>
+                </div>
+                <div class="lol-item-col lol-remove-col">
+                    <button type="button" class="lol-remove-item">&times;</button>
+                </div>
+            </div>
+        `;
+        $('#lol-edit-items-container').append(newRow);
+        editItemIndex++;
+    });
+
+    $('#lol-edit-form').submit(function(e) {
+        e.preventDefault();
+        let $btn = $('#btn-submit-edit');
+        let $msg = $('#edit-message');
+
+        $btn.prop('disabled', true).text('UPDATING...');
+        $msg.removeClass('error success').text('').hide();
+
+        let formData = $(this).serialize() + '&action=lol_save_edited_order&nonce=' + lol_ajax_obj.nonce;
+
+        $.post(lol_ajax_obj.ajax_url, formData, function(response) {
+            if (response.success) {
+                $msg.addClass('success').text(response.data.message).show();
+                setTimeout(function() {
+                    $('.lol-back-btn').click();
+                }, 2000);
+            } else {
+                $msg.addClass('error').text(response.data.message).show();
+                $btn.prop('disabled', false).text('UPDATE ORDER');
+            }
+        }).fail(function() {
+            $msg.addClass('error').text('An error occurred.').show();
+            $btn.prop('disabled', false).text('UPDATE ORDER');
         });
     });
 

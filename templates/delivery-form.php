@@ -25,7 +25,7 @@
             <p><strong>Status:</strong> <span id="detail_status"></span></p>
             
             <h4>Items:</h4>
-            <ul id="detail_items_list"></ul>
+            <div id="detail_items_list" class="lol-delivery-items-container"></div>
         </div>
 
         <div class="lol-form-group">
