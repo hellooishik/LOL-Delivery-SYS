@@ -58,6 +58,10 @@
                     <input type="radio" name="payment_status" value="Paid">
                     Paid
                 </label>
+                <label>
+                    <input type="radio" name="payment_status" value="Partial">
+                    Partial
+                </label>
             </div>
         </div>
 

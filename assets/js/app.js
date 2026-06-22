@@ -175,7 +175,8 @@ jQuery(document).ready(function($) {
 
     // Payment status toggle
     $('input[name="payment_status"]').change(function() {
-        if ($(this).val() === 'Paid') {
+        var val = $(this).val();
+        if (val === 'Paid' || val === 'Partial') {
             $('#amount_group').show();
             $('#total_bill_amount').prop('required', true);
             $('#amount_received').prop('required', true);
@@ -187,12 +188,19 @@ jQuery(document).ready(function($) {
         }
     });
 
-    // Balance due calculation
+    // Balance due calculation + auto-detect partial
     $('#total_bill_amount, #amount_received').on('input', function() {
         let total = parseFloat($('#total_bill_amount').val()) || 0;
         let received = parseFloat($('#amount_received').val()) || 0;
         let balance = total - received;
         $('#balance_due').val(balance.toFixed(2));
+
+        // Auto-select Partial if received > 0 but less than total
+        if (received > 0 && received < total) {
+            $('input[name="payment_status"][value="Partial"]').prop('checked', true);
+        } else if (received > 0 && received >= total) {
+            $('input[name="payment_status"][value="Paid"]').prop('checked', true);
+        }
     });
 
     $('#lol-delivery-form').submit(function(e) {

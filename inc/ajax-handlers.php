@@ -313,3 +313,49 @@ function lol_ajax_save_edited_order() {
         wp_send_json_error( array( 'message' => 'Order not found.' ) );
     }
 }
+
+// Sync Delivery Dates from Excel to DB
+add_action( 'wp_ajax_lol_sync_delivery_dates', 'lol_ajax_sync_delivery_dates' );
+
+function lol_ajax_sync_delivery_dates() {
+    if ( ! current_user_can('manage_options') ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized' ) );
+    }
+
+    global $wpdb;
+    $orders_table = $wpdb->prefix . 'laundry_orders';
+
+    $updates_json = isset($_POST['updates']) ? stripslashes($_POST['updates']) : '';
+    $updates = json_decode($updates_json, true);
+
+    if ( empty($updates) || ! is_array($updates) ) {
+        wp_send_json_error( array( 'message' => 'No updates provided.' ) );
+    }
+
+    $synced = 0;
+    foreach ($updates as $update) {
+        $token_id = sanitize_text_field($update['token_id']);
+        $delivery_date_raw = sanitize_text_field($update['delivery_date']);
+
+        if ( empty($token_id) || empty($delivery_date_raw) ) continue;
+
+        // Try to parse the delivery date into Y-m-d format
+        $timestamp = strtotime($delivery_date_raw);
+        if ( $timestamp === false ) continue;
+        $delivery_date = date('Y-m-d', $timestamp);
+
+        $updated = $wpdb->update(
+            $orders_table,
+            array( 'delivery_date' => $delivery_date ),
+            array( 'token_id' => $token_id ),
+            array( '%s' ),
+            array( '%s' )
+        );
+
+        if ( $updated !== false ) {
+            $synced++;
+        }
+    }
+
+    wp_send_json_success( array( 'synced' => $synced ) );
+}
