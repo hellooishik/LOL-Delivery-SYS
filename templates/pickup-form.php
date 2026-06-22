@@ -17,6 +17,11 @@
         </div>
 
         <div class="lol-form-group">
+            <label for="address">Address *</label>
+            <textarea id="address" name="address" required placeholder="Enter complete address" rows="2"></textarea>
+        </div>
+
+        <div class="lol-form-group">
             <label for="phone_number">Customer Phone Number *</label>
             <input type="tel" id="phone_number" name="phone_number" pattern="[0-9]{10}" required placeholder="10-digit number">
         </div>
@@ -68,6 +73,7 @@
 
         <div class="lol-success-actions">
             <button id="btn-copy-token" class="lol-btn-secondary">Copy Token</button>
+            <button id="btn-wa-pickup" class="lol-btn-secondary" style="background-color: #25D366; color: white; border-color: #25D366;">WhatsApp Confirm</button>
             <button id="btn-new-pickup" class="lol-btn-primary">New Pickup</button>
         </div>
     </div>

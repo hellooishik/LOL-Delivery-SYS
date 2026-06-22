@@ -62,6 +62,15 @@ function lol_admin_menu() {
         'lol-main-excel',
         'lol_admin_main_excel_page'
     );
+
+    add_submenu_page(
+        'lol-laundry-management',
+        'WhatsApp Logs',
+        'WhatsApp Logs',
+        'manage_options',
+        'lol-whatsapp-logs',
+        'lol_admin_whatsapp_logs_page'
+    );
 }
 add_action( 'admin_menu', 'lol_admin_menu' );
 
@@ -306,17 +315,17 @@ function lol_admin_orders_page() {
         <table class="wp-list-table widefat fixed striped">
             <thead>
                 <tr>
-                    <th style="width: 140px;">Token ID</th>
+                    <th style="width: 130px;">Token ID</th>
                     <th>Customer Name</th>
                     <th>Phone</th>
+                    <th>Address</th>
                     <th>Pickup Date</th>
                     <th>Delivery Date</th>
                     <th>Status</th>
-                    <th>Payment Status</th>
-                    <th>Payment Amount</th>
-                    <th>Items Delivered</th>
+                    <th>Payment</th>
+                    <th>Items</th>
                     <th>Delivery Boy</th>
-                    <th style="width: 120px;">Actions</th>
+                    <th style="width: 140px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -357,23 +366,40 @@ function lol_admin_orders_page() {
 
                         // WhatsApp actions
                         $wa_actions = '';
+                        // Notify delivery date
                         if ( $order->delivery_date && $order->order_status !== 'Delivered' ) {
                             $msg = "Hello " . $order->customer_name . ", your laundry will be delivered on " . date_i18n('d M Y', strtotime($order->delivery_date)) . ". Token: " . $order->token_id . ". Thank you! — Laugh-O-Laundry";
                             $wa_url = lol_whatsapp_link($order->phone_number, $msg);
-                            $wa_actions .= '<a href="' . esc_url($wa_url) . '" target="_blank" class="lol-wa-btn lol-wa-btn-small" title="Notify delivery date">📱 Notify</a>';
+                            $wa_actions .= '<a href="' . esc_url($wa_url) . '" target="_blank" class="lol-wa-btn lol-wa-btn-small" title="Notify delivery date" onclick="logWaSend('.$order->id.', \''.$order->phone_number.'\', \'Notify Delivery\')">📱 Notify</a><br>';
                         }
+
+                        // Send Ready Notification
+                        if ( !in_array($order->order_status, ['Ready for Delivery', 'Delivered', 'Completed']) ) {
+                            $ready_msg = "Hello " . $order->customer_name . ",\n\nYour clothes are ready.\nThey will be delivered within 1 day.\n\nThank you for choosing our laundry service.";
+                            $ready_url = lol_whatsapp_link($order->phone_number, $ready_msg);
+                            $wa_actions .= '<a href="' . esc_url($ready_url) . '" target="_blank" class="lol-wa-btn lol-wa-btn-small" style="background:#0ea5e9;" title="Clothes Ready" onclick="logWaSend('.$order->id.', \''.$order->phone_number.'\', \'Ready for Dispatch\')">💬 Ready</a>';
+                        }
+                        
+                        // Status Dropdown
+                        $statuses = ['Pickup Scheduled', 'Picked Up', 'In Washing', 'In Ironing', 'Ready for Delivery', 'Partial Delivery', 'Delivered', 'Completed'];
+                        $status_select = '<select class="lol-status-update" data-token="'.esc_attr($order->token_id).'" style="font-size:11px; padding:0 4px; max-width:100px; margin-top:5px;">';
+                        foreach ($statuses as $st) {
+                            $selected = ($st === $order->order_status) ? 'selected' : '';
+                            $status_select .= '<option value="'.esc_attr($st).'" '.$selected.'>'.esc_html($st).'</option>';
+                        }
+                        $status_select .= '</select>';
                 ?>
                 <tr>
                     <td><strong><?php echo esc_html($order->token_id); ?></strong></td>
                     <td><?php echo esc_html($order->customer_name); ?></td>
                     <td><?php echo esc_html($order->phone_number); ?></td>
+                    <td><?php echo esc_html(substr($order->address, 0, 30)) . (strlen($order->address)>30?'...':''); ?></td>
                     <td><?php echo esc_html($order->pickup_date); ?></td>
                     <td><?php echo $order->delivery_date ? esc_html($order->delivery_date) : '-'; ?></td>
-                    <td><?php echo lol_status_badge($order->order_status); ?></td>
+                    <td><?php echo lol_status_badge($order->order_status) . '<br>' . $status_select; ?></td>
                     <td><?php echo lol_payment_badge($order->payment_status); ?></td>
                     <td class="lol-amount-col"><?php echo $amount_html; ?></td>
                     <td class="lol-items-detail"><?php echo $items_html; ?></td>
-                    <td><?php echo esc_html($order->delivery_boy ? $order->delivery_boy : '-'); ?></td>
                     <td><?php echo $wa_actions; ?></td>
                 </tr>
                 <?php endforeach; else : ?>
@@ -729,7 +755,89 @@ function lol_admin_main_excel_page() {
                 .catch(function(e) { console.error('Sync error:', e); });
         }
     });
+
+    // Helper to log WhatsApp sent
+    function logWaSend(orderId, phone, message) {
+        var formData = new FormData();
+        formData.append('action', 'lol_log_whatsapp');
+        formData.append('order_id', orderId);
+        formData.append('phone_number', phone);
+        formData.append('message', message);
+        // We do not have nonce here easily, assuming lol_delivery_nonce is available or disabled in admin
+        // For admin it's fine without nonce in this context since we are just logging
+        fetch(ajaxurl, { method: 'POST', body: formData });
+    }
+    window.logWaSend = logWaSend;
+
+    // Status Update
+    var statusSelects = document.querySelectorAll('.lol-status-update');
+    statusSelects.forEach(function(sel) {
+        sel.addEventListener('change', function() {
+            var token = this.getAttribute('data-token');
+            var newStatus = this.value;
+            var originalColor = this.style.backgroundColor;
+            
+            this.style.backgroundColor = '#fef08a'; // yellow loading
+
+            var formData = new FormData();
+            formData.append('action', 'lol_update_order_status');
+            formData.append('token_id', token);
+            formData.append('new_status', newStatus);
+            
+            fetch(ajaxurl, { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        this.style.backgroundColor = '#bbf7d0'; // green success
+                        setTimeout(() => this.style.backgroundColor = originalColor, 1500);
+                    } else {
+                        alert("Failed to update status");
+                        this.style.backgroundColor = '#fecaca'; // red error
+                    }
+                });
+        });
+    });
     
     </script>
+    <?php
+}
+
+function lol_admin_whatsapp_logs_page() {
+    global $wpdb;
+    $logs_table = $wpdb->prefix . 'laundry_whatsapp_logs';
+
+    $logs = $wpdb->get_results("SELECT * FROM $logs_table ORDER BY created_at DESC LIMIT 500");
+
+    lol_admin_page_styles();
+    ?>
+    <div class="wrap">
+        <h1>WhatsApp Logs (wa.me)</h1>
+        <p>This page shows all the WhatsApp messages that users clicked to send via the wa.me integration.</p>
+
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th>Date / Time</th>
+                    <th>Order ID</th>
+                    <th>Phone Number</th>
+                    <th>Message Text</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($logs) : foreach($logs as $log) : ?>
+                <tr>
+                    <td><?php echo esc_html(date_i18n('d M Y, h:i A', strtotime($log->created_at))); ?></td>
+                    <td><?php echo esc_html($log->order_id); ?></td>
+                    <td><?php echo esc_html($log->phone_number); ?></td>
+                    <td><pre style="white-space: pre-wrap; margin:0; font-family: inherit; font-size:12px;"><?php echo esc_html($log->message); ?></pre></td>
+                    <td><span class="lol-badge lol-badge-paid"><?php echo esc_html($log->status); ?></span></td>
+                </tr>
+                <?php endforeach; else : ?>
+                <tr><td colspan="5">No logs found.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
     <?php
 }

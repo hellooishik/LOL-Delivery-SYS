@@ -20,13 +20,14 @@ function lol_ajax_save_pickup() {
 
     $customer_name = sanitize_text_field( $_POST['customer_name'] );
     $phone_number = sanitize_text_field( $_POST['phone_number'] );
+    $address = isset($_POST['address']) ? sanitize_textarea_field( $_POST['address'] ) : '';
     $pickup_date = current_time('Y-m-d');
     
     $items = isset($_POST['items']) ? $_POST['items'] : array();
 
     $pickup_agent_name = isset($_POST['pickup_agent_name']) ? sanitize_text_field( $_POST['pickup_agent_name'] ) : '';
 
-    if ( empty($customer_name) || empty($phone_number) || empty($items) ) {
+    if ( empty($customer_name) || empty($phone_number) || empty($items) || empty($address) ) {
         wp_send_json_error( array( 'message' => 'Missing required fields.' ) );
     }
 
@@ -56,11 +57,12 @@ function lol_ajax_save_pickup() {
             'token_id' => $token_id,
             'customer_name' => $customer_name,
             'phone_number' => $phone_number,
+            'address' => $address,
             'pickup_date' => $pickup_date,
             'pickup_agent_name' => $pickup_agent_name,
-            'order_status' => 'Processing'
+            'order_status' => 'Picked Up'
         ),
-        array('%s', '%s', '%s', '%s', '%s', '%s')
+        array('%s', '%s', '%s', '%s', '%s', '%s', '%s')
     );
 
     if ( $inserted ) {
@@ -102,16 +104,23 @@ function lol_ajax_search_token() {
     $orders_table = $wpdb->prefix . 'laundry_orders';
     $items_table = $wpdb->prefix . 'laundry_order_items';
 
-    $token_id = sanitize_text_field( $_POST['token_id'] );
+    $search_term = sanitize_text_field( $_POST['token_id'] );
 
-    if ( empty($token_id) ) {
-        wp_send_json_error( array( 'message' => 'Token ID is required.' ) );
+    if ( empty($search_term) ) {
+        wp_send_json_error( array( 'message' => 'Search term is required.' ) );
     }
 
-    $order = $wpdb->get_row($wpdb->prepare(
-        "SELECT * FROM $orders_table WHERE token_id = %s",
-        $token_id
-    ));
+    if ( strlen($search_term) === 4 && is_numeric($search_term) ) {
+        $order = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $orders_table WHERE token_id LIKE %s ORDER BY id DESC LIMIT 1",
+            '%-' . $search_term
+        ));
+    } else {
+        $order = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $orders_table WHERE token_id = %s",
+            $search_term
+        ));
+    }
 
     if ( $order ) {
         $items = $wpdb->get_results($wpdb->prepare(
@@ -127,7 +136,7 @@ function lol_ajax_search_token() {
             'items' => $items
         ) );
     } else {
-        wp_send_json_error( array( 'message' => 'Token ID not found.' ) );
+        wp_send_json_error( array( 'message' => 'Order not found.' ) );
     }
 }
 
@@ -144,6 +153,7 @@ function lol_ajax_save_delivery() {
     $token_id = sanitize_text_field( $_POST['token_id'] );
     $delivery_boy_name = sanitize_text_field( $_POST['delivery_boy'] );
     $payment_status = sanitize_text_field( $_POST['payment_status'] );
+    $delivery_type = isset($_POST['delivery_type']) ? sanitize_text_field( $_POST['delivery_type'] ) : 'Full';
     $payment_mode = isset($_POST['payment_mode']) ? sanitize_text_field( $_POST['payment_mode'] ) : '';
     $total_bill_amount = isset($_POST['total_bill_amount']) ? floatval( $_POST['total_bill_amount'] ) : 0;
     $amount_received = isset($_POST['amount_received']) ? floatval( $_POST['amount_received'] ) : 0;
@@ -155,6 +165,8 @@ function lol_ajax_save_delivery() {
         wp_send_json_error( array( 'message' => 'Missing required fields.' ) );
     }
 
+    $order_status = ($delivery_type === 'Partial') ? 'Partial Delivery' : 'Delivered';
+
     $updated = $wpdb->update(
         $orders_table,
         array(
@@ -165,7 +177,7 @@ function lol_ajax_save_delivery() {
             'total_bill_amount' => $total_bill_amount,
             'amount_received' => $amount_received,
             'balance_due' => $balance_due,
-            'order_status' => 'Delivered'
+            'order_status' => $order_status
         ),
         array( 'token_id' => $token_id ),
         array('%s', '%s', '%s', '%s', '%f', '%f', '%f', '%s'),
@@ -358,4 +370,69 @@ function lol_ajax_sync_delivery_dates() {
     }
 
     wp_send_json_success( array( 'synced' => $synced ) );
+}
+
+// Log WhatsApp Message
+add_action( 'wp_ajax_lol_log_whatsapp', 'lol_ajax_log_whatsapp' );
+add_action( 'wp_ajax_nopriv_lol_log_whatsapp', 'lol_ajax_log_whatsapp' );
+
+function lol_ajax_log_whatsapp() {
+    check_ajax_referer( 'lol_delivery_nonce', 'nonce' );
+
+    global $wpdb;
+    $logs_table = $wpdb->prefix . 'laundry_whatsapp_logs';
+
+    $order_id = isset($_POST['order_id']) ? intval($_POST['order_id']) : 0;
+    $phone_number = sanitize_text_field( $_POST['phone_number'] );
+    $message = sanitize_textarea_field( $_POST['message'] );
+
+    if ( empty($phone_number) || empty($message) ) {
+        wp_send_json_error( array( 'message' => 'Missing details' ) );
+    }
+
+    $wpdb->insert(
+        $logs_table,
+        array(
+            'order_id' => $order_id,
+            'phone_number' => $phone_number,
+            'message' => $message,
+            'status' => 'Sent via wa.me'
+        ),
+        array('%d', '%s', '%s', '%s')
+    );
+
+    wp_send_json_success();
+}
+
+// Update Order Status manually
+add_action( 'wp_ajax_lol_update_order_status', 'lol_ajax_update_order_status' );
+
+function lol_ajax_update_order_status() {
+    if ( ! current_user_can('manage_options') ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized' ) );
+    }
+
+    global $wpdb;
+    $orders_table = $wpdb->prefix . 'laundry_orders';
+
+    $token_id = sanitize_text_field( $_POST['token_id'] );
+    $new_status = sanitize_text_field( $_POST['new_status'] );
+
+    if ( empty($token_id) || empty($new_status) ) {
+        wp_send_json_error( array( 'message' => 'Missing parameters.' ) );
+    }
+
+    $updated = $wpdb->update(
+        $orders_table,
+        array( 'order_status' => $new_status ),
+        array( 'token_id' => $token_id ),
+        array( '%s' ),
+        array( '%s' )
+    );
+
+    if ( $updated !== false ) {
+        wp_send_json_success( array( 'message' => 'Status updated.' ) );
+    } else {
+        wp_send_json_error( array( 'message' => 'Failed to update.' ) );
+    }
 }

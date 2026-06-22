@@ -86,6 +86,12 @@ jQuery(document).ready(function($) {
                 $('#success-phone').text(data.phone_number);
                 $('#success-date').text(data.pickup_date);
                 
+                // Set WhatsApp Send button logic
+                let waMessage = `Hello ${data.customer_name},\n\nWe have successfully picked up your clothes.\nYour order is now being processed and is expected to be delivered within 3–4 days.\n\nThank you for choosing our laundry service.\n\nToken: ${data.token_id}`;
+                $('#btn-wa-pickup').off('click').on('click', function() {
+                    openWhatsAppAndLog(data.order_id || 0, data.phone_number, waMessage);
+                });
+
                 // Update Excel in background
                 updateExcelWithOrder('pickup', data);
             } else {
@@ -124,7 +130,7 @@ jQuery(document).ready(function($) {
         let $btn = $(this);
 
         if (!token) {
-            $msg.addClass('error').text('Please enter a Token ID.').show();
+            $msg.addClass('error').text('Please enter a Token ID or last 4 digits.').show();
             return;
         }
 
@@ -141,10 +147,22 @@ jQuery(document).ready(function($) {
                 let items = response.data.items;
 
                 $('#delivery_token_id').val(order.token_id);
+                $('#customer_phone_hidden').val(order.phone_number);
+                $('#customer_name_hidden').val(order.customer_name);
+                
                 $('#detail_name').text(order.customer_name);
                 $('#detail_phone').text(order.phone_number);
+                $('#detail_address').text(order.address || '-');
                 $('#detail_date').text(order.pickup_date);
                 $('#detail_status').text(order.order_status);
+                
+                let amtDueHtml = '-';
+                if (parseFloat(order.balance_due) > 0) {
+                    amtDueHtml = '₹' + order.balance_due;
+                } else if (parseFloat(order.total_bill_amount) > 0) {
+                    amtDueHtml = 'Paid (₹' + order.total_bill_amount + ')';
+                }
+                $('#detail_due').text(amtDueHtml);
 
                 let itemsHtml = '';
                 items.forEach(function(item) {
@@ -212,6 +230,10 @@ jQuery(document).ready(function($) {
         $msg.removeClass('error success').text('').hide();
 
         let formData = $(this).serialize() + '&action=lol_save_delivery&nonce=' + lol_ajax_obj.nonce;
+        let deliveryType = $('input[name="delivery_type"]:checked').val();
+        let cName = $('#customer_name_hidden').val();
+        let cPhone = $('#customer_phone_hidden').val();
+        let tId = $('#delivery_token_id').val();
 
         $.post(lol_ajax_obj.ajax_url, formData, function(response) {
             if (response.success) {
@@ -222,9 +244,26 @@ jQuery(document).ready(function($) {
                 updateExcelWithOrder('delivery', orderData);
 
                 $msg.addClass('success').text(response.data.message).show();
+                
+                let waMessage = '';
+                if (deliveryType === 'Partial') {
+                    waMessage = `Hello ${cName},\n\nA partial delivery of your laundry has been completed today.\nThe remaining items are still being processed and will be delivered on the due date.\n\nThank you for your patience.\nToken: ${tId}`;
+                } else {
+                    waMessage = `Hello ${cName},\n\nYour laundry order has been successfully delivered.\nThank you for choosing our laundry service.\nWe look forward to serving you again.\nToken: ${tId}`;
+                }
+
+                // Show a button to send WhatsApp instead of redirecting immediately
+                $msg.html(`Delivery saved successfully! <button type="button" id="btn-wa-delivery" class="lol-btn-secondary" style="margin-top:10px;">Send Delivery WhatsApp</button>`);
+                
+                $('#btn-wa-delivery').on('click', function() {
+                    openWhatsAppAndLog(0, cPhone, waMessage);
+                });
+
                 setTimeout(function() {
-                    $('.lol-back-btn').click(); // Go back to main menu
-                }, 2000);
+                    if($('#lol-delivery-view').hasClass('active-view')) {
+                        $('.lol-back-btn').click(); // Go back to main menu
+                    }
+                }, 5000); // Give them 5 seconds to click WhatsApp before auto-back
             } else {
                 $msg.addClass('error').text(response.data.message).show();
                 $btn.prop('disabled', false).text('MARK AS DELIVERED');
@@ -463,18 +502,37 @@ jQuery(document).ready(function($) {
                 formData.append('action', 'lol_save_excel_file');
                 formData.append('excel_base64', b64);
                 
-                fetch(lol_ajax_obj.ajax_url, { method: 'POST', body: formData })
-                    .then(r => r.json())
-                    .then(res => { 
-                        if (!res.success) {
-                            console.error('Failed to sync excel:', res); 
-                        } else {
-                            console.log('Successfully background synced excel!');
-                        }
-                    })
-                    .catch(e => console.error('Fetch error:', e));
+        fetch(lol_ajax_obj.ajax_url, { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(res => { 
+                if (!res.success) {
+                    console.error('Failed to sync excel:', res); 
+                } else {
+                    console.log('Successfully background synced excel!');
+                }
             })
-            .catch(err => console.error('Excel fetch error:', err));
-    }
+            .catch(e => console.error('Fetch error:', e));
+    })
+    .catch(err => console.error('Excel fetch error:', err));
+}
+
+// --- WhatsApp Logic --- //
+function openWhatsAppAndLog(orderId, phone, message) {
+    // Determine number format (ensure 91 prefix)
+    let cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+
+    let waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    window.open(waUrl, '_blank');
+
+    // Log to backend
+    $.post(lol_ajax_obj.ajax_url, {
+        action: 'lol_log_whatsapp',
+        nonce: lol_ajax_obj.nonce,
+        order_id: orderId,
+        phone_number: cleanPhone,
+        message: message
+    });
+}
 
 });

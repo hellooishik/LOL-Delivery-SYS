@@ -3,9 +3,9 @@
     <!-- Token Search -->
     <div id="lol-delivery-search" class="lol-search-section">
         <div class="lol-form-group">
-            <label for="search_token">Enter Token ID *</label>
+            <label for="search_token">Search Order (Last 4 Digits or Token) *</label>
             <div class="lol-search-box">
-                <input type="text" id="search_token" placeholder="LOL-YYYYMMDD-XXXX">
+                <input type="text" id="search_token" placeholder="e.g. 0001 or LOL-20260619-0001">
                 <button type="button" id="btn-search-token" class="lol-btn-primary">Search</button>
             </div>
         </div>
@@ -16,13 +16,31 @@
     <form id="lol-delivery-form" style="display: none;">
         
         <input type="hidden" id="delivery_token_id" name="token_id">
+        <input type="hidden" id="customer_phone_hidden" name="customer_phone_hidden">
+        <input type="hidden" id="customer_name_hidden" name="customer_name_hidden">
         
         <div class="lol-order-details">
             <h3>Order Details</h3>
             <p><strong>Customer:</strong> <span id="detail_name"></span></p>
             <p><strong>Phone:</strong> <span id="detail_phone"></span></p>
+            <p><strong>Address:</strong> <span id="detail_address"></span></p>
             <p><strong>Pickup Date:</strong> <span id="detail_date"></span></p>
-            <p><strong>Status:</strong> <span id="detail_status"></span></p>
+            <p><strong>Order Status:</strong> <span id="detail_status"></span></p>
+            <p><strong>Amount Due:</strong> <span id="detail_due" style="font-weight:bold; color:#d97706;"></span></p>
+
+            <div class="lol-form-group" style="margin-top: 15px;">
+                <label>Delivery Type *</label>
+                <div class="lol-radio-group">
+                    <label>
+                        <input type="radio" name="delivery_type" value="Full" checked>
+                        Full Delivery
+                    </label>
+                    <label>
+                        <input type="radio" name="delivery_type" value="Partial">
+                        Partial Delivery
+                    </label>
+                </div>
+            </div>
             
             <h4>Items:</h4>
             <div id="detail_items_list" class="lol-delivery-items-container"></div>

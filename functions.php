@@ -105,6 +105,7 @@ function lol_update_database_schema() {
     $wpdb->query("ALTER TABLE $table_orders ADD COLUMN payment_mode VARCHAR(50) NULL");
     $wpdb->query("ALTER TABLE $table_orders ADD COLUMN total_bill_amount DECIMAL(10,2) NULL");
     $wpdb->query("ALTER TABLE $table_orders ADD COLUMN balance_due DECIMAL(10,2) NULL");
+    $wpdb->query("ALTER TABLE $table_orders ADD COLUMN address TEXT NULL");
     
     $wpdb->query("ALTER TABLE $table_items ADD COLUMN delivered_quantity INT(11) DEFAULT 0 NOT NULL");
 
