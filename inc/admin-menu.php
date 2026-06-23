@@ -262,6 +262,176 @@ function lol_admin_page_styles() {
             color: #111827;
         }
     </style>
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Helper to log WhatsApp sent
+        function logWaSend(orderId, phone, message) {
+            var formData = new FormData();
+            formData.append('action', 'lol_log_whatsapp');
+            formData.append('order_id', orderId);
+            formData.append('phone_number', phone);
+            formData.append('message', message);
+            fetch(ajaxurl, { method: 'POST', body: formData });
+        }
+        window.logWaSend = logWaSend;
+
+        // Status Update
+        var statusSelects = document.querySelectorAll('.lol-status-update');
+        statusSelects.forEach(function(sel) {
+            sel.addEventListener('change', function() {
+                var token = this.getAttribute('data-token');
+                var newStatus = this.value;
+                var originalColor = this.style.backgroundColor;
+                
+                if (newStatus === 'Partial Delivery') {
+                    // Open Partial Delivery Modal
+                    openPartialDeliveryModal(token, sel, originalColor);
+                    return;
+                }
+                
+                this.style.backgroundColor = '#fef08a'; // yellow loading
+
+                var formData = new FormData();
+                formData.append('action', 'lol_update_order_status');
+                formData.append('token_id', token);
+                formData.append('new_status', newStatus);
+                
+                fetch(ajaxurl, { method: 'POST', body: formData })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            this.style.backgroundColor = '#bbf7d0'; // green success
+                            setTimeout(() => this.style.backgroundColor = originalColor, 1500);
+                        } else {
+                            alert("Failed to update status");
+                            this.style.backgroundColor = '#fecaca'; // red error
+                        }
+                    });
+            });
+        });
+
+        // Partial Delivery Modal Logic
+        var currentPartialToken = null;
+        var currentPartialSelect = null;
+        var currentPartialOriginalColor = null;
+
+        function openPartialDeliveryModal(token, selectElement, originalColor) {
+            currentPartialToken = token;
+            currentPartialSelect = selectElement;
+            currentPartialOriginalColor = originalColor;
+            document.getElementById('partial-token-id').textContent = token;
+            
+            var container = document.getElementById('partial-items-container');
+            container.innerHTML = '<p>Loading items...</p>';
+            document.getElementById('lol-partial-modal').style.display = 'flex';
+
+            // Fetch items using existing action
+            var fd = new FormData();
+            fd.append('action', 'lol_search_token');
+            fd.append('token_id', token);
+            fetch(ajaxurl, { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(res => {
+                    if(res.success) {
+                        var items = res.data.items;
+                        var html = '<h4 style="margin-top:0; margin-bottom:15px;">Items:</h4>';
+                        items.forEach(function(item) {
+                            var remain = parseInt(item.quantity) - parseInt(item.delivered_quantity);
+                            html += `
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                                    <div style="flex: 1; font-size: 14px; color: #444;">
+                                        Picked up: ${item.quantity} x ${item.service_type}
+                                    </div>
+                                    <div style="display: flex; align-items: center; font-size: 14px; color: #444;">
+                                        <label style="margin-right: 10px;">Delivered Qty:</label>
+                                        <input type="number" class="partial-qty-input" data-item-id="${item.id}" data-service="${item.service_type}" max="${remain}" min="0" value="0" style="width: 70px; padding: 5px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px;">
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = '<p style="color:red;">Error loading items.</p>';
+                    }
+                })
+                .catch(e => {
+                    container.innerHTML = '<p style="color:red;">Error loading items.</p>';
+                });
+        }
+
+        if (document.getElementById('btn-close-partial')) {
+            document.getElementById('btn-close-partial').addEventListener('click', function() {
+                document.getElementById('lol-partial-modal').style.display = 'none';
+                if (currentPartialSelect) {
+                    currentPartialSelect.value = 'Picked Up'; // Revert back temporarily
+                }
+            });
+        }
+
+        if (document.getElementById('btn-save-partial')) {
+            document.getElementById('btn-save-partial').addEventListener('click', function() {
+                var inputs = document.querySelectorAll('.partial-qty-input');
+                var updates = [];
+                var msgLines = [];
+                inputs.forEach(function(inp) {
+                    var val = parseInt(inp.value);
+                    if (val > 0) {
+                        updates.push({
+                            item_id: inp.getAttribute('data-item-id'),
+                            deliver_now: val
+                        });
+                        msgLines.push('• ' + inp.getAttribute('data-service') + ' - ' + val + ' Items');
+                    }
+                });
+
+                if (updates.length === 0) {
+                    alert('Please select at least one item to deliver.');
+                    return;
+                }
+
+                this.disabled = true;
+                this.textContent = 'Saving...';
+
+                var fd = new FormData();
+                fd.append('action', 'lol_save_partial_delivery');
+                fd.append('token_id', currentPartialToken);
+                fd.append('items', JSON.stringify(updates));
+
+                fetch(ajaxurl, { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(res => {
+                        this.disabled = false;
+                        this.textContent = 'Save Delivery & Notify';
+                        
+                        if (res.success) {
+                            document.getElementById('lol-partial-modal').style.display = 'none';
+                            if (currentPartialSelect) {
+                                currentPartialSelect.style.backgroundColor = '#bbf7d0';
+                                setTimeout(() => currentPartialSelect.style.backgroundColor = currentPartialOriginalColor, 1500);
+                            }
+                            
+                            // Send WhatsApp
+                            var waMsg = `Dear Customer,\n\nYour laundry order (Token ID: ${currentPartialToken}) is partially ready.\n\nItems being delivered today:\n\n${msgLines.join('\n')}\n\nRemaining items will be delivered shortly.\n\nThank you.`;
+                            if (res.data && res.data.phone_number) {
+                                window.logWaSend(res.data.order_id, res.data.phone_number, waMsg);
+                                var waUrl = `https://wa.me/91${res.data.phone_number}?text=${encodeURIComponent(waMsg)}`;
+                                window.open(waUrl, '_blank');
+                            }
+                            
+                            setTimeout(() => location.reload(), 1000); // Reload to reflect changes
+                        } else {
+                            alert(res.data ? res.data.message : 'Error saving partial delivery.');
+                        }
+                    })
+                    .catch(e => {
+                        this.disabled = false;
+                        this.textContent = 'Save Delivery & Notify';
+                        alert('Error saving partial delivery.');
+                    });
+            });
+        }
+    });
+    </script>
     <?php
 }
 
@@ -781,176 +951,8 @@ function lol_admin_main_excel_page() {
         }
     });
 
-    // Helper to log WhatsApp sent
-    function logWaSend(orderId, phone, message) {
-        var formData = new FormData();
-        formData.append('action', 'lol_log_whatsapp');
-        formData.append('order_id', orderId);
-        formData.append('phone_number', phone);
-        formData.append('message', message);
-        // We do not have nonce here easily, assuming lol_delivery_nonce is available or disabled in admin
-        // For admin it's fine without nonce in this context since we are just logging
-        fetch(ajaxurl, { method: 'POST', body: formData });
-    }
-    window.logWaSend = logWaSend;
-
-    // Status Update
-    var statusSelects = document.querySelectorAll('.lol-status-update');
-    statusSelects.forEach(function(sel) {
-        sel.addEventListener('change', function() {
-            var token = this.getAttribute('data-token');
-            var newStatus = this.value;
-            var originalColor = this.style.backgroundColor;
-            
-            if (newStatus === 'Partial Delivery') {
-                // Open Partial Delivery Modal
-                openPartialDeliveryModal(token, sel, originalColor);
-                return;
-            }
-            
-            this.style.backgroundColor = '#fef08a'; // yellow loading
-
-            var formData = new FormData();
-            formData.append('action', 'lol_update_order_status');
-            formData.append('token_id', token);
-            formData.append('new_status', newStatus);
-            
-            fetch(ajaxurl, { method: 'POST', body: formData })
-                .then(r => r.json())
-                .then(res => {
-                    if (res.success) {
-                        this.style.backgroundColor = '#bbf7d0'; // green success
-                        setTimeout(() => this.style.backgroundColor = originalColor, 1500);
-                    } else {
-                        alert("Failed to update status");
-                        this.style.backgroundColor = '#fecaca'; // red error
-                    }
-                });
-        });
+        // End of excel processing logic
     });
-
-    // Partial Delivery Modal Logic
-    var currentPartialToken = null;
-    var currentPartialSelect = null;
-    var currentPartialOriginalColor = null;
-
-    function openPartialDeliveryModal(token, selectElement, originalColor) {
-        currentPartialToken = token;
-        currentPartialSelect = selectElement;
-        currentPartialOriginalColor = originalColor;
-        document.getElementById('partial-token-id').textContent = token;
-        
-        var container = document.getElementById('partial-items-container');
-        container.innerHTML = '<p>Loading items...</p>';
-        document.getElementById('lol-partial-modal').style.display = 'flex';
-
-        // Fetch items using existing action
-        var fd = new FormData();
-        fd.append('action', 'lol_search_token');
-        fd.append('token_id', token);
-        // Assuming lol_delivery_nonce is either not checked for admin or we can pass it if we have it
-        // We will just fetch it
-        fetch(ajaxurl, { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(res => {
-                if(res.success) {
-                    var items = res.data.items;
-                    var html = '<h4 style="margin-top:0; margin-bottom:15px;">Items:</h4>';
-                    items.forEach(function(item) {
-                        var remain = parseInt(item.quantity) - parseInt(item.delivered_quantity);
-                        html += `
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
-                                <div style="flex: 1; font-size: 14px; color: #444;">
-                                    Picked up: ${item.quantity} x ${item.service_type}
-                                </div>
-                                <div style="display: flex; align-items: center; font-size: 14px; color: #444;">
-                                    <label style="margin-right: 10px;">Delivered Qty:</label>
-                                    <input type="number" class="partial-qty-input" data-item-id="${item.id}" data-service="${item.service_type}" max="${remain}" min="0" value="0" style="width: 70px; padding: 5px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px;">
-                                </div>
-                            </div>
-                        `;
-                    });
-                    container.innerHTML = html;
-                } else {
-                    container.innerHTML = '<p style="color:red;">Error loading items.</p>';
-                }
-            })
-            .catch(e => {
-                container.innerHTML = '<p style="color:red;">Error loading items.</p>';
-            });
-    }
-
-    if (document.getElementById('btn-close-partial')) {
-        document.getElementById('btn-close-partial').addEventListener('click', function() {
-            document.getElementById('lol-partial-modal').style.display = 'none';
-            if (currentPartialSelect) {
-                currentPartialSelect.value = 'Picked Up'; // Revert back temporarily
-            }
-        });
-    }
-
-    if (document.getElementById('btn-save-partial')) {
-        document.getElementById('btn-save-partial').addEventListener('click', function() {
-            var inputs = document.querySelectorAll('.partial-qty-input');
-            var updates = [];
-            var msgLines = [];
-            inputs.forEach(function(inp) {
-                var val = parseInt(inp.value);
-                if (val > 0) {
-                    updates.push({
-                        item_id: inp.getAttribute('data-item-id'),
-                        deliver_now: val
-                    });
-                    msgLines.push('• ' + inp.getAttribute('data-service') + ' - ' + val + ' Items');
-                }
-            });
-
-            if (updates.length === 0) {
-                alert('Please select at least one item to deliver.');
-                return;
-            }
-
-            this.disabled = true;
-            this.textContent = 'Saving...';
-
-            var fd = new FormData();
-            fd.append('action', 'lol_save_partial_delivery');
-            fd.append('token_id', currentPartialToken);
-            fd.append('items', JSON.stringify(updates));
-
-            fetch(ajaxurl, { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(res => {
-                    this.disabled = false;
-                    this.textContent = 'Save Delivery & Notify';
-                    
-                    if (res.success) {
-                        document.getElementById('lol-partial-modal').style.display = 'none';
-                        if (currentPartialSelect) {
-                            currentPartialSelect.style.backgroundColor = '#bbf7d0';
-                            setTimeout(() => currentPartialSelect.style.backgroundColor = currentPartialOriginalColor, 1500);
-                        }
-                        
-                        // Send WhatsApp
-                        var waMsg = `Dear Customer,\n\nYour laundry order (Token ID: ${currentPartialToken}) is partially ready.\n\nItems being delivered today:\n\n${msgLines.join('\n')}\n\nRemaining items will be delivered shortly.\n\nThank you.`;
-                        if (res.data && res.data.phone_number) {
-                            logWaSend(res.data.order_id, res.data.phone_number, waMsg);
-                            var waUrl = `https://wa.me/91${res.data.phone_number}?text=${encodeURIComponent(waMsg)}`;
-                            window.open(waUrl, '_blank');
-                        }
-                        
-                        setTimeout(() => location.reload(), 1000); // Reload to reflect changes
-                    } else {
-                        alert(res.data ? res.data.message : 'Error saving partial delivery.');
-                    }
-                })
-                .catch(e => {
-                    this.disabled = false;
-                    this.textContent = 'Save Delivery & Notify';
-                    alert('Error saving partial delivery.');
-                });
-        });
-    }
     
     </script>
     <?php
