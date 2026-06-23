@@ -855,15 +855,17 @@ function lol_admin_main_excel_page() {
             .then(res => {
                 if(res.success) {
                     var items = res.data.items;
-                    var html = '';
+                    var html = '<h4 style="margin-top:0; margin-bottom:15px;">Items:</h4>';
                     items.forEach(function(item) {
                         var remain = parseInt(item.quantity) - parseInt(item.delivered_quantity);
                         html += `
-                            <div style="margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:5px;">
-                                <div style="font-weight:bold;">${item.service_type}</div>
-                                <div style="display:flex; justify-content:space-between; margin-top:5px;">
-                                    <span>Total: ${item.quantity} | Delivered: ${item.delivered_quantity}</span>
-                                    <span>Deliver Now: <input type="number" class="partial-qty-input" data-item-id="${item.id}" data-service="${item.service_type}" max="${remain}" min="0" value="0" style="width:60px;"></span>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                                <div style="flex: 1; font-size: 14px; color: #444;">
+                                    Picked up: ${item.quantity} x ${item.service_type}
+                                </div>
+                                <div style="display: flex; align-items: center; font-size: 14px; color: #444;">
+                                    <label style="margin-right: 10px;">Delivered Qty:</label>
+                                    <input type="number" class="partial-qty-input" data-item-id="${item.id}" data-service="${item.service_type}" max="${remain}" min="0" value="0" style="width: 70px; padding: 5px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px;">
                                 </div>
                             </div>
                         `;
