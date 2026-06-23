@@ -71,6 +71,15 @@ function lol_admin_menu() {
         'lol-whatsapp-logs',
         'lol_admin_whatsapp_logs_page'
     );
+
+    add_submenu_page(
+        'lol-laundry-management',
+        'Payment Collection',
+        '💰 Payment Collection',
+        'manage_options',
+        'lol-payment-collection',
+        'lol_admin_payment_collection_page'
+    );
 }
 add_action( 'admin_menu', 'lol_admin_menu' );
 
@@ -323,6 +332,7 @@ function lol_admin_orders_page() {
                     <th>Delivery Date</th>
                     <th>Status</th>
                     <th>Payment</th>
+                    <th>Total Amount</th>
                     <th>Items</th>
                     <th>Delivery Boy</th>
                     <th style="width: 140px;">Actions</th>
@@ -338,7 +348,7 @@ function lol_admin_orders_page() {
                             $formatted_date = date_i18n('l, d F Y', strtotime($current_date));
                             ?>
                             <tr class="lol-date-header">
-                                <td colspan="11">📅 <?php echo esc_html($formatted_date); ?></td>
+                                <td colspan="12">📅 <?php echo esc_html($formatted_date); ?></td>
                             </tr>
                         <?php endif;
 
@@ -349,8 +359,7 @@ function lol_admin_orders_page() {
                             foreach ($all_items[$order->id] as $item) {
                                 $del = intval($item->delivered_quantity);
                                 $tot = intval($item->quantity);
-                                $css_class = ($del >= $tot) ? 'delivered-ok' : 'delivered-partial';
-                                $item_parts[] = '<span class="' . $css_class . '">' . $del . '/' . $tot . '</span> ' . esc_html($item->service_type);
+                                $item_parts[] = esc_html($item->service_type) . ': ' . $del . '/' . $tot;
                             }
                             $items_html = implode('<br>', $item_parts);
                         }
@@ -360,7 +369,9 @@ function lol_admin_orders_page() {
                         if ( $order->total_bill_amount > 0 || $order->amount_received > 0 ) {
                             $amount_html = '₹' . number_format($order->amount_received, 0) . ' / ₹' . number_format($order->total_bill_amount, 0);
                             if ( $order->balance_due > 0 ) {
-                                $amount_html .= '<br><small style="color: #dc2626;">Due: ₹' . number_format($order->balance_due, 0) . '</small>';
+                                $amount_html .= '<br>Due: ₹' . number_format($order->balance_due, 0);
+                            } else {
+                                $amount_html .= '<br>Paid';
                             }
                         }
 
@@ -381,7 +392,7 @@ function lol_admin_orders_page() {
                         }
                         
                         // Status Dropdown
-                        $statuses = ['Pickup Scheduled', 'Picked Up', 'In Washing', 'In Ironing', 'Ready for Delivery', 'Partial Delivery', 'Delivered', 'Completed'];
+                        $statuses = ['Picked Up', 'Partial Delivery', 'Delivered', 'Completed'];
                         $status_select = '<select class="lol-status-update" data-token="'.esc_attr($order->token_id).'" style="font-size:11px; padding:0 4px; max-width:100px; margin-top:5px;">';
                         foreach ($statuses as $st) {
                             $selected = ($st === $order->order_status) ? 'selected' : '';
@@ -400,13 +411,26 @@ function lol_admin_orders_page() {
                     <td><?php echo lol_payment_badge($order->payment_status); ?></td>
                     <td class="lol-amount-col"><?php echo $amount_html; ?></td>
                     <td class="lol-items-detail"><?php echo $items_html; ?></td>
+                    <td><?php echo esc_html($order->delivery_boy ? $order->delivery_boy : 'Not Assigned'); ?></td>
                     <td><?php echo $wa_actions; ?></td>
                 </tr>
                 <?php endforeach; else : ?>
-                <tr><td colspan="11">No orders found.</td></tr>
+                <tr><td colspan="12">No orders found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
+
+        <!-- Partial Delivery Modal -->
+        <div id="lol-partial-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
+            <div style="background:#fff; padding:20px; border-radius:8px; width:400px; max-width:90%; position:relative;">
+                <h2 style="margin-top:0;">Partial Delivery</h2>
+                <p>Token ID: <strong id="partial-token-id"></strong></p>
+                <div id="partial-items-container" style="max-height:300px; overflow-y:auto; margin-bottom:15px;"></div>
+                <button type="button" id="btn-save-partial" class="button button-primary">Save Delivery & Notify</button>
+                <button type="button" id="btn-close-partial" class="button" style="margin-left:10px;">Cancel</button>
+            </div>
+        </div>
+
     </div>
     <?php
 }
@@ -467,7 +491,7 @@ function lol_admin_todays_delivery_page() {
                     <th>Delivery Date</th>
                     <th>Status</th>
                     <th>Payment Status</th>
-                    <th>Payment Amount</th>
+                    <th>Total Amount</th>
                     <th>Items Delivered</th>
                     <th>Delivery Boy</th>
                     <th style="width: 160px;">Send Message</th>
@@ -482,8 +506,7 @@ function lol_admin_todays_delivery_page() {
                         foreach ($all_items[$order->id] as $item) {
                             $del = intval($item->delivered_quantity);
                             $tot = intval($item->quantity);
-                            $css_class = ($del >= $tot) ? 'delivered-ok' : 'delivered-partial';
-                            $item_parts[] = '<span class="' . $css_class . '">' . $del . '/' . $tot . '</span> ' . esc_html($item->service_type);
+                            $item_parts[] = esc_html($item->service_type) . ': ' . $del . '/' . $tot;
                         }
                         $items_html = implode('<br>', $item_parts);
                     }
@@ -493,7 +516,9 @@ function lol_admin_todays_delivery_page() {
                     if ( $order->total_bill_amount > 0 || $order->amount_received > 0 ) {
                         $amount_html = '₹' . number_format($order->amount_received, 0) . ' / ₹' . number_format($order->total_bill_amount, 0);
                         if ( $order->balance_due > 0 ) {
-                            $amount_html .= '<br><small style="color: #dc2626;">Due: ₹' . number_format($order->balance_due, 0) . '</small>';
+                            $amount_html .= '<br>Due: ₹' . number_format($order->balance_due, 0);
+                        } else {
+                            $amount_html .= '<br>Paid';
                         }
                     }
 
@@ -521,7 +546,7 @@ function lol_admin_todays_delivery_page() {
                     <td><?php echo lol_payment_badge($order->payment_status); ?></td>
                     <td class="lol-amount-col"><?php echo $amount_html; ?></td>
                     <td class="lol-items-detail"><?php echo $items_html; ?></td>
-                    <td><?php echo esc_html($order->delivery_boy ? $order->delivery_boy : '-'); ?></td>
+                    <td><?php echo esc_html($order->delivery_boy ? $order->delivery_boy : 'Not Assigned'); ?></td>
                     <td>
                         <a href="<?php echo esc_url($wa_url); ?>" target="_blank" class="lol-wa-btn">
                             📱 Send Message
@@ -777,6 +802,12 @@ function lol_admin_main_excel_page() {
             var newStatus = this.value;
             var originalColor = this.style.backgroundColor;
             
+            if (newStatus === 'Partial Delivery') {
+                // Open Partial Delivery Modal
+                openPartialDeliveryModal(token, sel, originalColor);
+                return;
+            }
+            
             this.style.backgroundColor = '#fef08a'; // yellow loading
 
             var formData = new FormData();
@@ -797,6 +828,127 @@ function lol_admin_main_excel_page() {
                 });
         });
     });
+
+    // Partial Delivery Modal Logic
+    var currentPartialToken = null;
+    var currentPartialSelect = null;
+    var currentPartialOriginalColor = null;
+
+    function openPartialDeliveryModal(token, selectElement, originalColor) {
+        currentPartialToken = token;
+        currentPartialSelect = selectElement;
+        currentPartialOriginalColor = originalColor;
+        document.getElementById('partial-token-id').textContent = token;
+        
+        var container = document.getElementById('partial-items-container');
+        container.innerHTML = '<p>Loading items...</p>';
+        document.getElementById('lol-partial-modal').style.display = 'flex';
+
+        // Fetch items using existing action
+        var fd = new FormData();
+        fd.append('action', 'lol_search_token');
+        fd.append('token_id', token);
+        // Assuming lol_delivery_nonce is either not checked for admin or we can pass it if we have it
+        // We will just fetch it
+        fetch(ajaxurl, { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                if(res.success) {
+                    var items = res.data.items;
+                    var html = '';
+                    items.forEach(function(item) {
+                        var remain = parseInt(item.quantity) - parseInt(item.delivered_quantity);
+                        html += `
+                            <div style="margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:5px;">
+                                <div style="font-weight:bold;">${item.service_type}</div>
+                                <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                                    <span>Total: ${item.quantity} | Delivered: ${item.delivered_quantity}</span>
+                                    <span>Deliver Now: <input type="number" class="partial-qty-input" data-item-id="${item.id}" data-service="${item.service_type}" max="${remain}" min="0" value="0" style="width:60px;"></span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p style="color:red;">Error loading items.</p>';
+                }
+            })
+            .catch(e => {
+                container.innerHTML = '<p style="color:red;">Error loading items.</p>';
+            });
+    }
+
+    if (document.getElementById('btn-close-partial')) {
+        document.getElementById('btn-close-partial').addEventListener('click', function() {
+            document.getElementById('lol-partial-modal').style.display = 'none';
+            if (currentPartialSelect) {
+                currentPartialSelect.value = 'Picked Up'; // Revert back temporarily
+            }
+        });
+    }
+
+    if (document.getElementById('btn-save-partial')) {
+        document.getElementById('btn-save-partial').addEventListener('click', function() {
+            var inputs = document.querySelectorAll('.partial-qty-input');
+            var updates = [];
+            var msgLines = [];
+            inputs.forEach(function(inp) {
+                var val = parseInt(inp.value);
+                if (val > 0) {
+                    updates.push({
+                        item_id: inp.getAttribute('data-item-id'),
+                        deliver_now: val
+                    });
+                    msgLines.push('• ' + inp.getAttribute('data-service') + ' - ' + val + ' Items');
+                }
+            });
+
+            if (updates.length === 0) {
+                alert('Please select at least one item to deliver.');
+                return;
+            }
+
+            this.disabled = true;
+            this.textContent = 'Saving...';
+
+            var fd = new FormData();
+            fd.append('action', 'lol_save_partial_delivery');
+            fd.append('token_id', currentPartialToken);
+            fd.append('items', JSON.stringify(updates));
+
+            fetch(ajaxurl, { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(res => {
+                    this.disabled = false;
+                    this.textContent = 'Save Delivery & Notify';
+                    
+                    if (res.success) {
+                        document.getElementById('lol-partial-modal').style.display = 'none';
+                        if (currentPartialSelect) {
+                            currentPartialSelect.style.backgroundColor = '#bbf7d0';
+                            setTimeout(() => currentPartialSelect.style.backgroundColor = currentPartialOriginalColor, 1500);
+                        }
+                        
+                        // Send WhatsApp
+                        var waMsg = `Dear Customer,\n\nYour laundry order (Token ID: ${currentPartialToken}) is partially ready.\n\nItems being delivered today:\n\n${msgLines.join('\n')}\n\nRemaining items will be delivered shortly.\n\nThank you.`;
+                        if (res.data && res.data.phone_number) {
+                            logWaSend(res.data.order_id, res.data.phone_number, waMsg);
+                            var waUrl = `https://wa.me/91${res.data.phone_number}?text=${encodeURIComponent(waMsg)}`;
+                            window.open(waUrl, '_blank');
+                        }
+                        
+                        setTimeout(() => location.reload(), 1000); // Reload to reflect changes
+                    } else {
+                        alert(res.data ? res.data.message : 'Error saving partial delivery.');
+                    }
+                })
+                .catch(e => {
+                    this.disabled = false;
+                    this.textContent = 'Save Delivery & Notify';
+                    alert('Error saving partial delivery.');
+                });
+        });
+    }
     
     </script>
     <?php
@@ -838,6 +990,153 @@ function lol_admin_whatsapp_logs_page() {
                 <?php endif; ?>
             </tbody>
         </table>
+    </div>
+    <?php
+}
+
+function lol_admin_payment_collection_page() {
+    global $wpdb;
+    $payments_table = $wpdb->prefix . 'payment_collections';
+
+    // Handle authentication state
+    $is_authenticated = false;
+    if ( isset($_POST['payment_auth_password']) && $_POST['payment_auth_password'] === 'admin123' ) {
+        $is_authenticated = true;
+    }
+
+    lol_admin_page_styles();
+
+    if ( ! $is_authenticated ) {
+        ?>
+        <div class="wrap" style="max-width: 400px; margin-top: 50px;">
+            <div style="background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h2 style="margin-top: 0; text-align: center;">Secure Access</h2>
+                <p style="text-align: center; color: #6b7280; margin-bottom: 20px;">Please enter the admin password to access Payment Collections.</p>
+                <form method="post">
+                    <div style="margin-bottom: 15px;">
+                        <input type="password" name="payment_auth_password" placeholder="Enter password" style="width: 100%; padding: 10px; font-size: 16px;" required>
+                    </div>
+                    <?php if ( isset($_POST['payment_auth_password']) ) : ?>
+                        <p style="color: #dc2626; font-size: 13px; text-align: center;">Incorrect password. Please try again.</p>
+                    <?php endif; ?>
+                    <button type="submit" class="button button-primary" style="width: 100%; padding: 10px; font-size: 16px; height: auto;">Unlock Dashboard</button>
+                </form>
+            </div>
+        </div>
+        <?php
+        return;
+    }
+
+    // Dashboard Statistics
+    $total_revenue = $wpdb->get_var("SELECT SUM(amount) FROM $payments_table WHERE verification_status = 'Verified'") ?: 0;
+    $collected_by_boys = $wpdb->get_var("SELECT SUM(amount) FROM $payments_table") ?: 0;
+    $verified_by_admin = $total_revenue;
+    $pending_verification = $wpdb->get_var("SELECT SUM(amount) FROM $payments_table WHERE verification_status = 'Pending'") ?: 0;
+    $todays_collection = $wpdb->get_var($wpdb->prepare("SELECT SUM(amount) FROM $payments_table WHERE DATE(collection_date) = %s", current_time('Y-m-d'))) ?: 0;
+
+    // Fetch pending collections
+    $pending_list = $wpdb->get_results("SELECT * FROM $payments_table WHERE verification_status = 'Pending' ORDER BY collection_date DESC");
+
+    ?>
+    <div class="wrap">
+        <h1>Payment Collection Dashboard</h1>
+
+        <div class="lol-stat-cards" style="flex-wrap: wrap;">
+            <div class="lol-stat-card">
+                <h3>Total Revenue</h3>
+                <p class="stat-value" style="color:#16a34a;">₹<?php echo number_format($total_revenue, 0); ?></p>
+            </div>
+            <div class="lol-stat-card">
+                <h3>Collected by Delivery Boys</h3>
+                <p class="stat-value">₹<?php echo number_format($collected_by_boys, 0); ?></p>
+            </div>
+            <div class="lol-stat-card">
+                <h3>Verified by Admin</h3>
+                <p class="stat-value" style="color:#2563eb;">₹<?php echo number_format($verified_by_admin, 0); ?></p>
+            </div>
+            <div class="lol-stat-card">
+                <h3>Pending Verification</h3>
+                <p class="stat-value" style="color:#d97706;">₹<?php echo number_format($pending_verification, 0); ?></p>
+            </div>
+            <div class="lol-stat-card">
+                <h3>Today's Collection</h3>
+                <p class="stat-value">₹<?php echo number_format($todays_collection, 0); ?></p>
+            </div>
+        </div>
+
+        <h2 style="margin-top: 40px;">Pending Collections</h2>
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th>Date & Time</th>
+                    <th>Token ID</th>
+                    <th>Delivery Boy</th>
+                    <th>Payment Mode</th>
+                    <th>Amount</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($pending_list) : foreach($pending_list as $pl) : ?>
+                <tr id="payment-row-<?php echo esc_attr($pl->id); ?>">
+                    <td><?php echo esc_html(date_i18n('d M Y, h:i A', strtotime($pl->collection_date))); ?></td>
+                    <td><strong><?php echo esc_html($pl->token_id); ?></strong></td>
+                    <td><?php echo esc_html($pl->delivery_boy_id ?: 'Unknown'); ?></td>
+                    <td><?php echo esc_html($pl->payment_mode); ?></td>
+                    <td style="font-weight:bold; color:#166534;">₹<?php echo number_format($pl->amount, 0); ?></td>
+                    <td>
+                        <button type="button" class="button button-primary btn-verify-payment" data-id="<?php echo esc_attr($pl->id); ?>">
+                            ☑ Verify
+                        </button>
+                    </td>
+                </tr>
+                <?php endforeach; else : ?>
+                <tr><td colspan="6">No pending collections.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+
+        <!-- We need to keep the session alive on page reload, so pass it silently or just let them stay until refresh -->
+        <form id="refresh-auth-form" method="post" style="display:none;">
+            <input type="hidden" name="payment_auth_password" value="admin123">
+        </form>
+
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var verifyBtns = document.querySelectorAll('.btn-verify-payment');
+            verifyBtns.forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var paymentId = this.getAttribute('data-id');
+                    if (!confirm('Have you physically verified this amount?')) return;
+                    
+                    var oldText = this.textContent;
+                    this.textContent = 'Verifying...';
+                    this.disabled = true;
+
+                    var fd = new FormData();
+                    fd.append('action', 'lol_verify_payment');
+                    fd.append('payment_id', paymentId);
+
+                    fetch(ajaxurl, { method: 'POST', body: fd })
+                        .then(r => r.json())
+                        .then(res => {
+                            if(res.success) {
+                                document.getElementById('refresh-auth-form').submit(); // Refresh to update stats
+                            } else {
+                                alert('Error: ' + res.data.message);
+                                this.textContent = oldText;
+                                this.disabled = false;
+                            }
+                        })
+                        .catch(e => {
+                            alert('Network error.');
+                            this.textContent = oldText;
+                            this.disabled = false;
+                        });
+                });
+            });
+        });
+        </script>
     </div>
     <?php
 }

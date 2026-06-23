@@ -167,6 +167,12 @@ function lol_ajax_save_delivery() {
 
     $order_status = ($delivery_type === 'Partial') ? 'Partial Delivery' : 'Delivered';
 
+    // Fetch existing order to compare amounts
+    $old_order = $wpdb->get_row($wpdb->prepare("SELECT * FROM $orders_table WHERE token_id = %s", $token_id));
+    $old_received = $old_order ? floatval($old_order->amount_received) : 0;
+    
+    $amount_collected_now = $amount_received - $old_received;
+
     $updated = $wpdb->update(
         $orders_table,
         array(
@@ -195,6 +201,22 @@ function lol_ajax_save_delivery() {
                 array( 'id' => intval($item_id) ),
                 array( '%d' ),
                 array( '%d' )
+            );
+        }
+
+        // Record payment collection if new amount received
+        if ( $amount_collected_now > 0 ) {
+            $payments_table = $wpdb->prefix . 'payment_collections';
+            $wpdb->insert(
+                $payments_table,
+                array(
+                    'token_id' => $token_id,
+                    'delivery_boy_id' => $delivery_boy_name,
+                    'amount' => $amount_collected_now,
+                    'payment_mode' => $payment_mode ?: 'Cash',
+                    'verification_status' => 'Pending'
+                ),
+                array('%s', '%s', '%f', '%s', '%s')
             );
         }
 
@@ -432,6 +454,108 @@ function lol_ajax_update_order_status() {
 
     if ( $updated !== false ) {
         wp_send_json_success( array( 'message' => 'Status updated.' ) );
+    } else {
+        wp_send_json_error( array( 'message' => 'Failed to update.' ) );
+    }
+}
+
+// Save Partial Delivery Modal
+add_action( 'wp_ajax_lol_save_partial_delivery', 'lol_ajax_save_partial_delivery' );
+add_action( 'wp_ajax_nopriv_lol_save_partial_delivery', 'lol_ajax_save_partial_delivery' );
+
+function lol_ajax_save_partial_delivery() {
+    global $wpdb;
+    $orders_table = $wpdb->prefix . 'laundry_orders';
+    $items_table = $wpdb->prefix . 'laundry_order_items';
+    $partial_table = $wpdb->prefix . 'partial_deliveries';
+
+    $token_id = sanitize_text_field( $_POST['token_id'] );
+    $items_json = isset($_POST['items']) ? stripslashes($_POST['items']) : '';
+    $updates = json_decode($items_json, true);
+
+    if ( empty($token_id) || empty($updates) ) {
+        wp_send_json_error( array( 'message' => 'Missing parameters.' ) );
+    }
+
+    $order = $wpdb->get_row($wpdb->prepare("SELECT * FROM $orders_table WHERE token_id = %s", $token_id));
+    if ( ! $order ) {
+        wp_send_json_error( array( 'message' => 'Order not found.' ) );
+    }
+
+    foreach ($updates as $upd) {
+        $item_id = intval($upd['item_id']);
+        $deliver_now = intval($upd['deliver_now']);
+
+        if ( $deliver_now > 0 ) {
+            // Update delivered_quantity in order_items
+            $wpdb->query($wpdb->prepare(
+                "UPDATE $items_table SET delivered_quantity = delivered_quantity + %d WHERE id = %d",
+                $deliver_now, $item_id
+            ));
+
+            // Record in partial_deliveries
+            $wpdb->insert(
+                $partial_table,
+                array(
+                    'token_id' => $token_id,
+                    'item_id' => $item_id,
+                    'delivered_quantity' => $deliver_now,
+                    'delivery_boy' => 'Admin' // Assuming admin does this
+                ),
+                array('%s', '%d', '%d', '%s')
+            );
+        }
+    }
+
+    // Update order status
+    $wpdb->update(
+        $orders_table,
+        array( 'order_status' => 'Partial Delivery' ),
+        array( 'token_id' => $token_id ),
+        array( '%s' ),
+        array( '%s' )
+    );
+
+    wp_send_json_success( array( 
+        'message' => 'Partial delivery saved.',
+        'order_id' => $order->id,
+        'phone_number' => $order->phone_number
+    ) );
+}
+
+// Verify Payment
+add_action( 'wp_ajax_lol_verify_payment', 'lol_ajax_verify_payment' );
+
+function lol_ajax_verify_payment() {
+    if ( ! current_user_can('manage_options') ) {
+        wp_send_json_error( array( 'message' => 'Unauthorized' ) );
+    }
+
+    global $wpdb;
+    $payments_table = $wpdb->prefix . 'payment_collections';
+
+    $payment_id = isset($_POST['payment_id']) ? intval($_POST['payment_id']) : 0;
+    
+    if ( $payment_id <= 0 ) {
+        wp_send_json_error( array( 'message' => 'Invalid payment ID.' ) );
+    }
+
+    $current_user = wp_get_current_user();
+    
+    $updated = $wpdb->update(
+        $payments_table,
+        array(
+            'verification_status' => 'Verified',
+            'verified_by' => $current_user->display_name,
+            'verified_date' => current_time('mysql')
+        ),
+        array( 'id' => $payment_id ),
+        array( '%s', '%s', '%s' ),
+        array( '%d' )
+    );
+
+    if ( $updated !== false ) {
+        wp_send_json_success( array( 'message' => 'Payment verified.' ) );
     } else {
         wp_send_json_error( array( 'message' => 'Failed to update.' ) );
     }

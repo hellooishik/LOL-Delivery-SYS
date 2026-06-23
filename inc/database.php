@@ -15,6 +15,8 @@ function lol_create_custom_tables() {
     $table_orders = $wpdb->prefix . 'laundry_orders';
     $table_items = $wpdb->prefix . 'laundry_order_items';
     $table_logs = $wpdb->prefix . 'laundry_whatsapp_logs';
+    $table_payment_collections = $wpdb->prefix . 'payment_collections';
+    $table_partial_deliveries = $wpdb->prefix . 'partial_deliveries';
 
     $sql_orders = "CREATE TABLE $table_orders (
         id bigint(20) NOT NULL AUTO_INCREMENT,
@@ -60,8 +62,37 @@ function lol_create_custom_tables() {
         KEY order_id (order_id)
     ) $charset_collate;";
 
+    $sql_payment_collections = "CREATE TABLE $table_payment_collections (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        token_id varchar(50) NOT NULL,
+        customer_id bigint(20) NULL,
+        delivery_boy_id varchar(255) NULL,
+        amount decimal(10,2) NOT NULL,
+        payment_mode varchar(50) NOT NULL,
+        collection_date datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        verification_status varchar(20) DEFAULT 'Pending' NOT NULL,
+        verified_by varchar(255) NULL,
+        verified_date datetime NULL,
+        PRIMARY KEY  (id),
+        KEY token_id (token_id)
+    ) $charset_collate;";
+
+    $sql_partial_deliveries = "CREATE TABLE $table_partial_deliveries (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        token_id varchar(50) NOT NULL,
+        item_id bigint(20) NOT NULL,
+        delivered_quantity int(11) NOT NULL,
+        delivery_date datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        delivery_boy varchar(255) NULL,
+        PRIMARY KEY  (id),
+        KEY token_id (token_id),
+        KEY item_id (item_id)
+    ) $charset_collate;";
+
     require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
     dbDelta( $sql_orders );
     dbDelta( $sql_items );
     dbDelta( $sql_logs );
+    dbDelta( $sql_payment_collections );
+    dbDelta( $sql_partial_deliveries );
 }
