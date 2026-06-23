@@ -263,6 +263,7 @@ function lol_admin_page_styles() {
         }
     </style>
     <script>
+    var lol_delivery_nonce_token = "<?php echo wp_create_nonce('lol_delivery_nonce'); ?>";
     document.addEventListener("DOMContentLoaded", function() {
         // Helper to log WhatsApp sent
         function logWaSend(orderId, phone, message) {
@@ -271,6 +272,7 @@ function lol_admin_page_styles() {
             formData.append('order_id', orderId);
             formData.append('phone_number', phone);
             formData.append('message', message);
+            formData.append('nonce', lol_delivery_nonce_token);
             fetch(ajaxurl, { method: 'POST', body: formData });
         }
         window.logWaSend = logWaSend;
@@ -329,6 +331,7 @@ function lol_admin_page_styles() {
             var fd = new FormData();
             fd.append('action', 'lol_search_token');
             fd.append('token_id', token);
+            fd.append('nonce', lol_delivery_nonce_token);
             fetch(ajaxurl, { method: 'POST', body: fd })
                 .then(r => r.json())
                 .then(res => {
@@ -396,6 +399,7 @@ function lol_admin_page_styles() {
                 fd.append('action', 'lol_save_partial_delivery');
                 fd.append('token_id', currentPartialToken);
                 fd.append('items', JSON.stringify(updates));
+                fd.append('nonce', lol_delivery_nonce_token);
 
                 fetch(ajaxurl, { method: 'POST', body: fd })
                     .then(r => r.json())
