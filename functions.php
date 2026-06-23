@@ -110,5 +110,8 @@ function lol_update_database_schema() {
     $wpdb->query("ALTER TABLE $table_items ADD COLUMN delivered_quantity INT(11) DEFAULT 0 NOT NULL");
 
     $wpdb->suppress_errors = false;
+    
+    // Ensure custom tables are created without needing to reactivate the theme
+    lol_create_custom_tables();
 }
 add_action('init', 'lol_update_database_schema');
